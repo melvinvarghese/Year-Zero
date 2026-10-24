@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#17251f">
+  <meta name="description" content="Year Zero — a living world simulation. One survivor. The birth of a civilization.">
+  <title>Year Zero — A Living World Simulation</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Year Zero home">
+        <span class="brand-mark">YZ</span>
+        <span><strong>YEAR ZERO</strong><small>A LIVING WORLD SIMULATION</small></span>
+      </a>
+      <div class="top-meta">
+        <span class="status-dot"></span>
+        <span id="world-status">WORLD SIMULATING</span>
+        <span class="meta-divider">/</span>
+        <span id="real-clock">LOCAL TIME</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="intro-row">
+        <div>
+          <p class="eyebrow">THE WORLD AFTER EVERYONE</p>
+          <h1>Humanity ended.<br><em>One life continued.</em></h1>
+        </div>
+        <p class="intro-copy">You cannot direct him. You can only witness what he does, what the world takes from him, and what he leaves behind.</p>
+      </section>
+
+      <section class="world-stage" aria-label="Current environment">
+        <div class="sky-grain"></div>
+        <div class="sun-glow"></div>
+        <div class="distant-hills"></div>
+        <div class="palm palm-one"><i></i><i></i><i></i><i></i><i></i><b></b></div>
+        <div class="palm palm-two"><i></i><i></i><i></i><i></i><i></i><b></b></div>
+        <div class="house">
+          <div class="roof"></div><div class="roof-edge"></div>
+          <div class="house-wall"><div class="window"></div><div class="door"></div><div class="window window-two"></div></div>
+          <div class="veranda"></div>
+        </div>
+        <div class="overgrowth growth-one"></div><div class="overgrowth growth-two"></div>
+        <div class="foreground"></div>
+        <div class="figure" id="figure" aria-label="The survivor"><span class="head"></span><span class="body"></span><span class="leg leg-one"></span><span class="leg leg-two"></span></div>
+        <div class="scene-vignette"></div>
+        <div class="scene-topline"><span id="region-label">KERALA · COASTAL SETTLEMENT</span><span id="weather-label">OVERCAST · 29°C</span></div>
+        <div class="scene-caption">
+          <span class="caption-kicker" id="scene-kicker">LOCATION 001 · ORIGIN</span>
+          <h2 id="scene-title">The old house</h2>
+          <p id="scene-description">A red-tiled roof. A well gone green. The sea beyond the palms, with no ship on it.</p>
+        </div>
+        <div class="scene-bottom"><span>OBSERVER MODE</span><span>NO CONTROLS · NO MISSIONS</span></div>
+      </section>
+
+      <section class="date-strip">
+        <div><span class="eyebrow">SIMULATION DATE</span><strong id="sim-date">YEAR 1 · DAY 1</strong></div>
+        <div class="time-progress-wrap"><div class="time-labels"><span>DAWN</span><span id="time-label">06:00</span><span>NIGHT</span></div><div class="time-track"><div id="day-progress" class="time-progress"></div></div></div>
+        <div class="day-length"><strong>15 MIN</strong><span>PER SIMULATED DAY</span></div>
+      </section>
+
+      <section class="content-grid">
+        <div class="main-column">
+          <section class="panel chronicle-panel">
+            <div class="panel-heading"><div><p class="eyebrow">A LIFE UNFOLDING</p><h2>Chronicle</h2></div><span class="live-pill"><i></i> LIVE</span></div>
+            <p class="panel-intro">A record of what happens. Events are generated from his needs, the weather, available resources and the passage of time.</p>
+            <div id="chronicle" class="chronicle" aria-live="polite"></div>
+            <button id="show-history" class="text-button" type="button">VIEW EARLIER EVENTS <span>↗</span></button>
+          </section>
+
+          <section class="panel region-panel">
+            <div class="panel-heading"><div><p class="eyebrow">A WORLD NOT YET KNOWN</p><h2>His horizon</h2></div><span class="quiet-label" id="regions-count">1 REGION KNOWN</span></div>
+            <p class="panel-intro">The world is not a map to browse. Places enter the chronicle when he discovers them. Distant regions remain unknown until the journey reaches them.</p>
+            <div id="regions" class="regions"></div>
+          </section>
+        </div>
+
+        <aside class="side-column">
+          <section class="panel survivor-panel">
+            <div class="panel-heading"><div><p class="eyebrow">THE ONLY KNOWN LIFE</p><h2>The survivor</h2></div><span class="survivor-symbol">01</span></div>
+            <div class="survivor-name"><span class="avatar">?</span><div><strong id="survivor-name">Unknown</strong><span id="survivor-mood">Quietly determined</span></div></div>
+            <p class="muted-copy">He has no audience. He doesn't know anyone is watching.</p>
+            <div class="needs">
+              <div class="need-row"><div><span>Hunger</span><strong id="hunger-value">34%</strong></div><div class="need-track"><i id="hunger-bar" style="width:34%"></i></div></div>
+              <div class="need-row"><div><span>Thirst</span><strong id="thirst-value">27%</strong></div><div class="need-track"><i id="thirst-bar" style="width:27%"></i></div></div>
+              <div class="need-row"><div><span>Health</span><strong id="health-value">100%</strong></div><div class="need-track"><i id="health-bar" style="width:100%"></i></div></div>
+              <div class="need-row"><div><span>Energy</span><strong id="energy-value">78%</strong></div><div class="need-track"><i id="energy-bar" style="width:78%"></i></div></div>
+            </div>
+            <div class="inventory">
+              <p class="eyebrow">CARRIED RESOURCES</p>
+              <div class="inventory-grid">
+                <div><span>FOOD</span><strong id="food-value">3</strong></div>
+                <div><span>WATER</span><strong id="water-value">2</strong></div>
+                <div><span>WOOD</span><strong id="wood-value">0</strong></div>
+                <div><span>SCRAP</span><strong id="scrap-value">0</strong></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel world-panel">
+            <div class="panel-heading"><div><p class="eyebrow">THE WORLD REMEMBERS</p><h2>Settlement</h2></div></div>
+            <div class="settlement-stat"><span>Current shelter</span><strong id="shelter-value">Abandoned house</strong></div>
+            <div class="settlement-stat"><span>Food source</span><strong id="food-source">Foraging</strong></div>
+            <div class="settlement-stat"><span>Water source</span><strong id="water-source">Old well</strong></div>
+            <div class="settlement-stat"><span>Known structures</span><strong id="structure-count">1</strong></div>
+            <div class="build-progress" id="build-progress-wrap" hidden><div><span id="build-name">Rain collector</span><strong id="build-percent">0%</strong></div><div class="need-track"><i id="build-bar"></i></div></div>
+          </section>
+
+          <section class="panel settings-panel">
+            <p class="eyebrow">OBSERVER SETTINGS</p>
+            <div class="setting-row"><div><strong>Simulation</strong><span>Pause or resume the world</span></div><button id="pause-button" class="small-button" type="button">PAUSE</button></div>
+            <div class="setting-row"><div><strong>Ambient sound</strong><span>Optional atmosphere</span></div><button id="sound-button" class="small-button" type="button">SOUND OFF</button></div>
+            <div class="setting-row"><div><strong>Save data</strong><span>Stored in this browser</span></div><button id="reset-button" class="small-button danger" type="button">RESET</button></div>
+            <p class="fine-print">This is an early prototype. The world advances while open and catches up after you return. Progress is stored on this device.</p>
+          </section>
+        </aside>
+      </section>
+
+      <footer><span>YEAR ZERO <span class="footer-dot">•</span> BUILD 0.1</span><span>A world can begin with one life.</span></footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
