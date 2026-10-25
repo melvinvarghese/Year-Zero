@@ -1,31 +1,16 @@
-# Year Zero — cinematic prototype
+# Year Zero — project files
 
-**A living world. One survivor. The birth of a civilization.**
+A living-world observer simulation prototype: one survivor on the Kerala coast after the end of civilization. The survivor chooses among finding food, collecting water, resting, gathering wood, repairing shelter and exploring. The player observes and can gently bias priorities rather than directly move the character.
 
-Year Zero is a browser-based, single-survivor world simulation prototype. It begins on a fictionalised coastal stretch of Kerala, India. The player observes a survivor's life, reads the field journal, checks his condition, and nudges his priorities.
+## Included
+- `index.html` — semantic interface and panels
+- `styles.css` — responsive cinematic presentation
+- `app.js` — autonomous survival loop, needs/resources, exploration, chronicle and browser save
+- `assets/kerala-coast.png` — included background artwork
 
-## What's in this version
-- Cinematic background artwork and a responsive, atmospheric interface.
-- A survivor status panel, field journal, known-world panel, and day timeline.
-- One simulated day lasts 15 real minutes.
-- Basic needs, supplies, shelter upgrades, fire, tool crafting, gathering, and exploration.
-- Browser-local saves with elapsed-time catch-up when the page is reopened.
-- A pause control and reset option.
+One simulated day is 15 real minutes. Saving is browser-local; GitHub Pages is static hosting and cannot run a server-side simulation while nobody visits. Elapsed-time catch-up is limited to seven simulated days. This is a 2D prototype, not a 3D game.
 
-## Important prototype limitations
-This is a **front-end prototype**, not a full simulation engine or a game with animated 3D characters. The scene uses a single piece of artwork; the timeline is a set of illustrative moments, not a live camera. The autonomous behaviour is deliberately lightweight and should be expanded before claiming deep simulation.
+## Publish
+Upload the contents of this folder to the root of `melvinvarghese/Year-Zero`, including the `assets` folder. Then set GitHub Pages to branch `main`, folder `/(root)`.
 
-GitHub Pages is static hosting: it cannot keep a server-side world running while nobody visits. This version saves the world in the current browser and calculates a limited amount of elapsed time when reopened. Data does not synchronise between devices or browsers.
-
-## Publish on GitHub Pages
-1. Upload the contents of this folder to the root of the `Year-Zero` repository. Keep `index.html`, `styles.css`, `app.js`, and the `assets` folder together.
-2. Open **Settings → Pages**.
-3. Under **Build and deployment**, choose **Deploy from a branch**.
-4. Choose branch `main` and folder `/ (root)`, then save.
-5. Wait for the deployment to finish and open `https://melvinvarghese.github.io/Year-Zero/`.
-
-## Files
-- `index.html` — interface and accessible structure.
-- `styles.css` — cinematic responsive design.
-- `app.js` — lightweight simulation, local save, interactions.
-- `assets/year-zero-scene.png` — background artwork.
+https://melvinvarghese.github.io/Year-Zero/
