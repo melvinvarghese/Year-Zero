@@ -3,126 +3,116 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#17251f">
-  <meta name="description" content="Year Zero — a living world simulation. One survivor. The birth of a civilization.">
-  <title>Year Zero — A Living World Simulation</title>
+  <meta name="theme-color" content="#0b1111">
+  <meta name="description" content="Year Zero — a living world. One survivor. The birth of a civilization.">
+  <title>Year Zero — A New World Begins</title>
+  <link rel="preload" href="assets/year-zero-scene.png" as="image">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="./" aria-label="Year Zero home">
-        <span class="brand-mark">YZ</span>
-        <span><strong>YEAR ZERO</strong><small>A LIVING WORLD SIMULATION</small></span>
-      </a>
-      <div class="top-meta">
-        <span class="status-dot"></span>
-        <span id="world-status">WORLD SIMULATING</span>
-        <span class="meta-divider">/</span>
-        <span id="real-clock">LOCAL TIME</span>
+  <main class="game-shell">
+    <section class="world" aria-label="The world">
+      <div class="world-art" role="img" aria-label="A lone survivor in an overgrown coastal Kerala village at dawn"></div>
+      <div class="world-shade"></div>
+
+      <header class="masthead">
+        <div class="brand">
+          <div class="brand-name">YEAR ZERO</div>
+          <div class="brand-tag"><span></span>A NEW WORLD BEGINS<span></span></div>
+        </div>
+        <div class="world-stamp">
+          <div class="weather-icon" id="weatherIcon">☁</div>
+          <div><strong id="weatherName">Coastal mist</strong><small id="weatherNote">Rain possible later</small></div>
+          <div class="clock"><strong id="clock">06:15</strong><small id="dayPart">Morning</small></div>
+        </div>
+      </header>
+
+      <div class="location-stamp">
+        <div class="eyebrow" id="dateLabel">YEAR 1&nbsp; · &nbsp;DAY 1</div>
+        <div class="location-name" id="locationName">Kerala Coast, India</div>
+        <div class="world-status"><span class="pulse"></span><span id="statusText">The world is quiet</span></div>
       </div>
-    </header>
 
-    <main>
-      <section class="intro-row">
-        <div>
-          <p class="eyebrow">THE WORLD AFTER EVERYONE</p>
-          <h1>Humanity ended.<br><em>One life continued.</em></h1>
+      <div class="survivor-caption">
+        <span class="caption-rule"></span>
+        <div><span class="eyebrow">THE LAST KNOWN SURVIVOR</span><p id="sceneCaption">A new day waits beyond the trees.</p></div>
+      </div>
+
+      <div class="survival-card">
+        <div class="survival-row"><span class="survival-symbol">♥</span><span class="survival-label">Health</span><div class="meter"><span id="healthBar" class="health-fill" style="width:92%"></span></div><b id="healthValue">92</b></div>
+        <div class="survival-row"><span class="survival-symbol">♨</span><span class="survival-label">Hunger</span><div class="meter"><span id="hungerBar" class="hunger-fill" style="width:28%"></span></div><b id="hungerValue">28</b></div>
+        <div class="survival-row"><span class="survival-symbol">◉</span><span class="survival-label">Thirst</span><div class="meter"><span id="thirstBar" class="thirst-fill" style="width:24%"></span></div><b id="thirstValue">24</b></div>
+        <div class="survival-row"><span class="survival-symbol">ϟ</span><span class="survival-label">Energy</span><div class="meter"><span id="energyBar" class="energy-fill" style="width:74%"></span></div><b id="energyValue">74</b></div>
+      </div>
+
+      <div class="action-dock" aria-label="Survivor priorities">
+        <button class="action" data-action="shelter"><span class="action-icon">⌂</span><span>Shelter</span></button>
+        <button class="action" data-action="fire"><span class="action-icon">♨</span><span>Fire</span></button>
+        <button class="action" data-action="tools"><span class="action-icon">⚒</span><span>Tools</span></button>
+        <button class="action" data-action="gather"><span class="action-icon">♧</span><span>Gather</span></button>
+        <button class="action" data-action="explore"><span class="action-icon">⌖</span><span>Explore</span></button>
+      </div>
+
+      <div class="bottom-strip">
+        <div class="strip-heading"><span>THE DAY UNFOLDS</span><span id="elapsedLabel">A moment at a time</span></div>
+        <div class="timeline" id="timeline">
+          <button class="memory active"><span class="memory-picture memory-dawn"></span><time>06:15</time><span>Awakening</span></button>
+          <button class="memory"><span class="memory-picture memory-well"></span><time>08:20</time><span>Collecting water</span></button>
+          <button class="memory"><span class="memory-picture memory-shore"></span><time>10:40</time><span>Along the shore</span></button>
+          <button class="memory"><span class="memory-picture memory-forest"></span><time>13:00</time><span>Finding supplies</span></button>
+          <button class="memory"><span class="memory-picture memory-fire"></span><time>18:20</time><span>Evening fire</span></button>
         </div>
-        <p class="intro-copy">You cannot direct him. You can only witness what he does, what the world takes from him, and what he leaves behind.</p>
-      </section>
+      </div>
+    </section>
 
-      <section class="world-stage" aria-label="Current environment">
-        <div class="sky-grain"></div>
-        <div class="sun-glow"></div>
-        <div class="distant-hills"></div>
-        <div class="palm palm-one"><i></i><i></i><i></i><i></i><i></i><b></b></div>
-        <div class="palm palm-two"><i></i><i></i><i></i><i></i><i></i><b></b></div>
-        <div class="house">
-          <div class="roof"></div><div class="roof-edge"></div>
-          <div class="house-wall"><div class="window"></div><div class="door"></div><div class="window window-two"></div></div>
-          <div class="veranda"></div>
+    <aside class="side-panel">
+      <div class="panel-tabs" role="tablist" aria-label="World information">
+        <button class="tab active" data-tab="journal" role="tab" aria-selected="true">Journal</button>
+        <button class="tab" data-tab="status" role="tab" aria-selected="false">Status</button>
+        <button class="tab" data-tab="world" role="tab" aria-selected="false">World</button>
+      </div>
+      <section class="tab-content active" id="journalPanel" data-panel="journal">
+        <div class="panel-title"><span class="eyebrow">FIELD JOURNAL</span><span class="live-dot"></span></div>
+        <h2>Another day<br>in the quiet.</h2>
+        <p class="panel-intro">The world has not ended for him. Not yet.</p>
+        <div class="journal-list" id="journalList" aria-live="polite"></div>
+      </section>
+      <section class="tab-content" id="statusPanel" data-panel="status" hidden>
+        <div class="panel-title"><span class="eyebrow">SURVIVOR PROFILE</span><span class="live-dot"></span></div>
+        <h2>One life.<br>Still moving.</h2>
+        <p class="panel-intro">No orders. No quest marker. Just the work of staying alive.</p>
+        <div class="detail-list">
+          <div><span>Condition</span><b id="condition">Stable</b></div>
+          <div><span>Current shelter</span><b id="shelterState">Abandoned house</b></div>
+          <div><span>Fire</span><b id="fireState">Cold</b></div>
+          <div><span>Tools</span><b id="toolsState">Makeshift</b></div>
+          <div><span>Food stores</span><b id="foodState">3 portions</b></div>
+          <div><span>Water stores</span><b id="waterState">2 containers</b></div>
         </div>
-        <div class="overgrowth growth-one"></div><div class="overgrowth growth-two"></div>
-        <div class="foreground"></div>
-        <div class="figure" id="figure" aria-label="The survivor"><span class="head"></span><span class="body"></span><span class="leg leg-one"></span><span class="leg leg-two"></span></div>
-        <div class="scene-vignette"></div>
-        <div class="scene-topline"><span id="region-label">KERALA · COASTAL SETTLEMENT</span><span id="weather-label">OVERCAST · 29°C</span></div>
-        <div class="scene-caption">
-          <span class="caption-kicker" id="scene-kicker">LOCATION 001 · ORIGIN</span>
-          <h2 id="scene-title">The old house</h2>
-          <p id="scene-description">A red-tiled roof. A well gone green. The sea beyond the palms, with no ship on it.</p>
+        <p class="quiet-note">The survivor acts autonomously as time passes. These controls only nudge what he prioritises.</p>
+      </section>
+      <section class="tab-content" id="worldPanel" data-panel="world" hidden>
+        <div class="panel-title"><span class="eyebrow">KNOWN WORLD</span><span class="live-dot"></span></div>
+        <h2>Beyond the<br>overgrown road.</h2>
+        <p class="panel-intro">A small beginning. A world that may grow much larger.</p>
+        <div class="region-card discovered"><span class="region-number">01</span><div><b>Coastal homestead</b><small>Known · shelter and well</small></div><span class="region-mark">●</span></div>
+        <div class="region-card"><span class="region-number">02</span><div><b>Old village road</b><small id="villageState">Not yet explored</small></div><span class="region-mark">○</span></div>
+        <div class="region-card"><span class="region-number">03</span><div><b>Backwater edge</b><small id="backwaterState">Beyond the palms</small></div><span class="region-mark">○</span></div>
+        <div class="region-card locked"><span class="region-number">04</span><div><b>The wider coast</b><small>Unknown territory</small></div><span class="region-mark">⌁</span></div>
+        <div class="world-note"><span class="note-icon">✦</span><p>As knowledge, tools, and resources grow, the known world can expand beyond this coastline.</p></div>
+      </section>
+      <footer class="panel-footer">
+        <div class="simulation-state"><span class="state-led" id="stateLed"></span><span id="simulationState">WORLD SIMULATING</span></div>
+        <div class="footer-actions">
+          <button id="pauseBtn" class="text-button">Pause time</button>
+          <button id="soundBtn" class="text-button" aria-pressed="false">Sound off</button>
+          <button id="resetBtn" class="text-button reset">Reset</button>
         </div>
-        <div class="scene-bottom"><span>OBSERVER MODE</span><span>NO CONTROLS · NO MISSIONS</span></div>
-      </section>
-
-      <section class="date-strip">
-        <div><span class="eyebrow">SIMULATION DATE</span><strong id="sim-date">YEAR 1 · DAY 1</strong></div>
-        <div class="time-progress-wrap"><div class="time-labels"><span>DAWN</span><span id="time-label">06:00</span><span>NIGHT</span></div><div class="time-track"><div id="day-progress" class="time-progress"></div></div></div>
-        <div class="day-length"><strong>15 MIN</strong><span>PER SIMULATED DAY</span></div>
-      </section>
-
-      <section class="content-grid">
-        <div class="main-column">
-          <section class="panel chronicle-panel">
-            <div class="panel-heading"><div><p class="eyebrow">A LIFE UNFOLDING</p><h2>Chronicle</h2></div><span class="live-pill"><i></i> LIVE</span></div>
-            <p class="panel-intro">A record of what happens. Events are generated from his needs, the weather, available resources and the passage of time.</p>
-            <div id="chronicle" class="chronicle" aria-live="polite"></div>
-            <button id="show-history" class="text-button" type="button">VIEW EARLIER EVENTS <span>↗</span></button>
-          </section>
-
-          <section class="panel region-panel">
-            <div class="panel-heading"><div><p class="eyebrow">A WORLD NOT YET KNOWN</p><h2>His horizon</h2></div><span class="quiet-label" id="regions-count">1 REGION KNOWN</span></div>
-            <p class="panel-intro">The world is not a map to browse. Places enter the chronicle when he discovers them. Distant regions remain unknown until the journey reaches them.</p>
-            <div id="regions" class="regions"></div>
-          </section>
-        </div>
-
-        <aside class="side-column">
-          <section class="panel survivor-panel">
-            <div class="panel-heading"><div><p class="eyebrow">THE ONLY KNOWN LIFE</p><h2>The survivor</h2></div><span class="survivor-symbol">01</span></div>
-            <div class="survivor-name"><span class="avatar">?</span><div><strong id="survivor-name">Unknown</strong><span id="survivor-mood">Quietly determined</span></div></div>
-            <p class="muted-copy">He has no audience. He doesn't know anyone is watching.</p>
-            <div class="needs">
-              <div class="need-row"><div><span>Hunger</span><strong id="hunger-value">34%</strong></div><div class="need-track"><i id="hunger-bar" style="width:34%"></i></div></div>
-              <div class="need-row"><div><span>Thirst</span><strong id="thirst-value">27%</strong></div><div class="need-track"><i id="thirst-bar" style="width:27%"></i></div></div>
-              <div class="need-row"><div><span>Health</span><strong id="health-value">100%</strong></div><div class="need-track"><i id="health-bar" style="width:100%"></i></div></div>
-              <div class="need-row"><div><span>Energy</span><strong id="energy-value">78%</strong></div><div class="need-track"><i id="energy-bar" style="width:78%"></i></div></div>
-            </div>
-            <div class="inventory">
-              <p class="eyebrow">CARRIED RESOURCES</p>
-              <div class="inventory-grid">
-                <div><span>FOOD</span><strong id="food-value">3</strong></div>
-                <div><span>WATER</span><strong id="water-value">2</strong></div>
-                <div><span>WOOD</span><strong id="wood-value">0</strong></div>
-                <div><span>SCRAP</span><strong id="scrap-value">0</strong></div>
-              </div>
-            </div>
-          </section>
-
-          <section class="panel world-panel">
-            <div class="panel-heading"><div><p class="eyebrow">THE WORLD REMEMBERS</p><h2>Settlement</h2></div></div>
-            <div class="settlement-stat"><span>Current shelter</span><strong id="shelter-value">Abandoned house</strong></div>
-            <div class="settlement-stat"><span>Food source</span><strong id="food-source">Foraging</strong></div>
-            <div class="settlement-stat"><span>Water source</span><strong id="water-source">Old well</strong></div>
-            <div class="settlement-stat"><span>Known structures</span><strong id="structure-count">1</strong></div>
-            <div class="build-progress" id="build-progress-wrap" hidden><div><span id="build-name">Rain collector</span><strong id="build-percent">0%</strong></div><div class="need-track"><i id="build-bar"></i></div></div>
-          </section>
-
-          <section class="panel settings-panel">
-            <p class="eyebrow">OBSERVER SETTINGS</p>
-            <div class="setting-row"><div><strong>Simulation</strong><span>Pause or resume the world</span></div><button id="pause-button" class="small-button" type="button">PAUSE</button></div>
-            <div class="setting-row"><div><strong>Ambient sound</strong><span>Optional atmosphere</span></div><button id="sound-button" class="small-button" type="button">SOUND OFF</button></div>
-            <div class="setting-row"><div><strong>Save data</strong><span>Stored in this browser</span></div><button id="reset-button" class="small-button danger" type="button">RESET</button></div>
-            <p class="fine-print">This is an early prototype. The world advances while open and catches up after you return. Progress is stored on this device.</p>
-          </section>
-        </aside>
-      </section>
-
-      <footer><span>YEAR ZERO <span class="footer-dot">•</span> BUILD 0.1</span><span>A world can begin with one life.</span></footer>
-    </main>
-  </div>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+        <div class="save-note"><span>◈</span> World saved in this browser</div>
+      </footer>
+    </aside>
+  </main>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="app.js"></script>
 </body>
 </html>

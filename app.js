@@ -1,417 +1,212 @@
 (() => {
   "use strict";
-  const SAVE_KEY = "yearZeroSaveV1";
-  const DAY_MS = 15 * 60 * 1000;
-  const HOUR_MS = DAY_MS / 24;
-  const MAX_OFFLINE_MS = 7 * DAY_MS;
+  const DAY_MS = 15 * 60 * 1000; // One simulated day per 15 real minutes.
+  const SAVE_KEY = "year-zero-save-v2";
   const $ = (id) => document.getElementById(id);
-  const clamp = (n, min = 0, max = 100) => Math.max(min, Math.min(max, n));
-  const pick = (arr, seed) => arr[Math.abs(seed) % arr.length];
-
   const initialState = () => ({
-    version: 1,
-    createdAt: Date.now(),
-    lastRealTime: Date.now(),
-    simMs: 6 * HOUR_MS,
-    paused: false,
-    soundOn: false,
-    survivor: { name: "The survivor", hunger: 34, thirst: 27, health: 100, energy: 78, food: 3, water: 2, wood: 0, scrap: 0, mood: "Quietly determined", alive: true },
-    world: { weather: "Overcast", temperature: 29, rain: false, shelter: "Abandoned house", foodSource: "Foraging", waterSource: "Old well", structures: ["Abandoned house"], knownRegions: ["Coastal Kerala"], discoveries: [], dayCount: 1, build: null, currentLocation: "The old house" },
-    log: [
-      { at: 6, day: 1, type: "BEGINNING", title: "The first morning", text: "He wakes beneath a roof that leaks in three places. Beyond the veranda, the village is quiet. He has not yet decided whether quiet is a comfort or a warning." },
-      { at: 6.4, day: 1, type: "OBSERVATION", title: "The well", text: "The old well is still there, half-hidden by weeds. He tests the rope before drawing water. It holds." }
+    startedAt: Date.now(), lastSeen: Date.now(), paused: false,
+    day: 1, minutes: 375, health: 92, hunger: 28, thirst: 24, energy: 74,
+    food: 3, water: 2, wood: 4, scrap: 1, shelter: 1, fire: false, tools: false,
+    exploredVillage: false, exploredBackwater: false, actionCount: 0,
+    journal: [
+      {time:"06:15", icon:"⌂", title:"Woke beneath a leaking roof", detail:"The house is quiet. The rain has moved out to sea, for now."},
+      {time:"06:40", icon:"♨", title:"Checked the remaining supplies", detail:"A few portions of food, two containers of water, and little else."},
+      {time:"07:05", icon:"◉", title:"Listened to the coast", detail:"Waves, birds, wind through the palms. No voices."}
     ],
-    nextEventAt: 7.2,
-    eventCount: 2,
-    lastAction: "Looking over the abandoned yard",
-    historyExpanded: false
+    memories: [
+      {time:"06:15", title:"Awakening", detail:"The survivor wakes in the abandoned house.", action:"rest"},
+      {time:"08:20", title:"Collecting water", detail:"He checks the old well for clean water.", action:"gather"},
+      {time:"10:40", title:"Along the shore", detail:"The tide has left something useful behind.", action:"explore"},
+      {time:"13:00", title:"Finding supplies", detail:"He searches the green edge of the village.", action:"gather"},
+      {time:"18:20", title:"Evening fire", detail:"He tries to make a fire before dark.", action:"fire"}
+    ]
   });
-
-  let state;
-  let audioContext = null;
+  let state = load();
   let toastTimer = null;
+  let soundEnabled = false;
+  let audioContext = null;
 
-  function loadState() {
+  function load() {
     try {
-      const raw = localStorage.getItem(SAVE_KEY);
-      if (!raw) return initialState();
-      const parsed = JSON.parse(raw);
-      if (!parsed || parsed.version !== 1 || !parsed.survivor || !parsed.world || !Array.isArray(parsed.log)) return initialState();
-      return parsed;
-    } catch (_) { return initialState(); }
+      const saved = localStorage.getItem(SAVE_KEY);
+      if (!saved) return initialState();
+      const s = {...initialState(), ...JSON.parse(saved)};
+      const now = Date.now();
+      if (!s.paused && s.lastSeen && now > s.lastSeen) advance(Math.min(now - s.lastSeen, 7 * DAY_MS), s, false);
+      s.lastSeen = now;
+      return s;
+    } catch { return initialState(); }
   }
-  function saveState() {
-    state.lastRealTime = Date.now();
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (_) {}
+  function save() {
+    state.lastSeen = Date.now();
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch {}
   }
-  function dateParts(simMs) {
-    const totalHours = Math.floor(simMs / HOUR_MS);
-    return { day: Math.floor(totalHours / 24) + 1, hour: totalHours % 24, minute: Math.floor((simMs % HOUR_MS) / HOUR_MS * 60) };
+  function addJournal(title, detail, icon="•") {
+    state.journal.unshift({time:formatClock(state.minutes), icon, title, detail});
+    state.journal = state.journal.slice(0, 14);
   }
-  function timeString(simMs) {
-    const p = dateParts(simMs);
-    return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+  function formatClock(mins) {
+    const m = ((mins % 1440) + 1440) % 1440;
+    return String(Math.floor(m/60)).padStart(2,"0") + ":" + String(m%60).padStart(2,"0");
   }
-  function dayPart(hour) {
-    if (hour < 5) return "NIGHT";
-    if (hour < 8) return "DAWN";
-    if (hour < 12) return "MORNING";
-    if (hour < 16) return "AFTERNOON";
-    if (hour < 19) return "DUSK";
-    return "NIGHT";
+  function dayPart(mins) {
+    const h = Math.floor(mins/60)%24;
+    if (h < 5) return "Night";
+    if (h < 11) return "Morning";
+    if (h < 16) return "Afternoon";
+    if (h < 19) return "Evening";
+    return "Night";
   }
-  function addEvent(type, title, text, at = state.simMs / HOUR_MS) {
-    const p = dateParts(at * HOUR_MS);
-    state.log.unshift({ at, day: p.day, type, title, text });
-    if (state.log.length > 250) state.log.length = 250;
-    state.eventCount++;
-    if (state.log.length % 5 === 0) saveState();
+  function advance(ms, target=state, log=true) {
+    if (ms <= 0) return;
+    const beforeDay = target.day;
+    const simulatedMinutes = ms / DAY_MS * 1440;
+    const oldHour = Math.floor(target.minutes / 60);
+    target.minutes += simulatedMinutes;
+    while (target.minutes >= 1440) {
+      target.minutes -= 1440;
+      target.day++;
+      target.hunger = Math.min(100, target.hunger + 28);
+      target.thirst = Math.min(100, target.thirst + 34);
+      target.energy = Math.max(15, target.energy - 12);
+      if (target.food > 0) { target.food--; target.hunger = Math.max(5, target.hunger - 24); }
+      if (target.water > 0) { target.water--; target.thirst = Math.max(5, target.thirst - 29); }
+      if (target.hunger > 88 || target.thirst > 90) target.health = Math.max(8, target.health - 5);
+      if (target.energy < 30) target.health = Math.max(8, target.health - 2);
+      if (target.day % 3 === 0 && target.shelter < 3) target.wood = Math.max(0,target.wood);
+      if (log) addJournal("Daybreak, again", "The world kept turning while he slept. Hunger and thirst are harder to ignore.", "☼");
+    }
+    const newHour = Math.floor(target.minutes/60);
+    if (log && oldHour !== newHour) {
+      if (newHour === 7) autonomous("morning", target, log);
+      else if (newHour === 12) autonomous("midday", target, log);
+      else if (newHour === 18) autonomous("evening", target, log);
+      else if (newHour === 22) autonomous("night", target, log);
+    }
+    target.lastSeen = Date.now();
   }
-  function changeMood() {
-    const s = state.survivor;
-    if (s.health < 30 || s.thirst > 80 || s.hunger > 85) s.mood = "Struggling";
-    else if (s.energy < 20) s.mood = "Exhausted";
-    else if (state.world.discoveries.length > 2) s.mood = "Quietly hopeful";
-    else s.mood = "Quietly determined";
+  function autonomous(period, target=state, log=true) {
+    if (target.paused) return;
+    if (target.thirst > 62 && target.water < 3) {
+      target.water++; target.thirst = Math.max(5,target.thirst-25);
+      if(log) addJournal("Went to the well", "He filled a container before the walk became harder.", "◉");
+    } else if (target.hunger > 65 && target.food < 3) {
+      target.food++; target.hunger = Math.max(5,target.hunger-20);
+      if(log) addJournal("Found something to eat", "A small meal, gathered carefully from the overgrown garden.", "♧");
+    } else if (period === "morning" && target.energy > 35) {
+      target.wood = Math.min(12,target.wood+1); target.energy = Math.max(10,target.energy-8);
+      if(log) addJournal("Worked around the house", "He collected fallen branches and cleared the path to the well.", "⚒");
+    } else if (period === "midday" && target.energy < 65) {
+      target.energy = Math.min(100,target.energy+15);
+      if(log) addJournal("Rested in the shade", "The heat rose. He chose to conserve his strength.", "☼");
+    } else if (period === "evening" && !target.fire && target.wood > 0) {
+      target.fire = true; target.wood--; target.energy = Math.max(5,target.energy-4);
+      if(log) addJournal("Made a small fire", "The light makes the empty house feel a little less empty.", "♨");
+    } else if (period === "night") {
+      target.energy = Math.min(100,target.energy+18);
+      if(log) addJournal("Settled in for the night", "The shutters creak in the wind. Tomorrow will bring its own work.", "⌂");
+    }
   }
-
-  function actionEvent(action) {
-    const s = state.survivor, w = state.world;
-    const hour = dateParts(state.simMs).hour;
-    const at = state.simMs / HOUR_MS;
-    switch (action) {
-      case "drink":
-        if (s.water > 0) {
-          s.water--; s.thirst = clamp(s.thirst - 35);
-          addEvent("SURVIVAL", "A little water", "He drinks slowly, saving what remains. The old well is useful, but he will need a safer way to store water.", at);
-        } else if (w.rain) {
-          s.thirst = clamp(s.thirst - 18);
-          addEvent("WEATHER", "Rainwater", "He catches rain in a dented metal bowl and drinks what he can. The rain will not last forever.", at);
+  function act(type) {
+    state.actionCount++;
+    const actions = {
+      shelter() {
+        if (state.wood >= 2) { state.wood -= 2; state.shelter = Math.min(3,state.shelter+1); state.health=Math.min(100,state.health+2); addJournal("Repaired the shelter","Palm fronds and salvaged timber patch a gap in the roof.","⌂"); notify("Shelter improved. A little more protection from the weather."); }
+        else { addJournal("Inspected the shelter","The roof needs more wood before it can be repaired.","⌂"); notify("Not enough wood yet. Gather some fallen branches first."); }
+      },
+      fire() {
+        if (state.wood > 0) { state.wood--; state.fire=true; state.energy=Math.max(0,state.energy-3); addJournal("Built a small fire","Dry leaves catch. Smoke rises through a gap in the roof.","♨"); notify("A small fire is burning."); }
+        else { addJournal("Looked for firewood","The ground is damp and the nearby woodpile is empty.","♨"); notify("No firewood left. Try gathering supplies."); }
+      },
+      tools() {
+        if (!state.tools && state.scrap > 0) { state.tools=true; state.scrap--; state.energy=Math.max(0,state.energy-5); addJournal("Made a crude hand tool","A piece of salvaged metal and a sturdy branch make a rough tool.","⚒"); notify("A crude tool should make future work easier."); }
+        else if (state.tools) { addJournal("Maintained the hand tool","He tightened its binding and checked the edge.","⚒"); notify("The tool is already made. It will help with future tasks."); }
+        else { addJournal("Searched for useful materials","Nothing suitable turned up in the house.","⚒"); notify("No scrap metal available yet. Explore the shore."); }
+      },
+      gather() {
+        const roll = Math.random();
+        if (roll < .45) { state.food=Math.min(10,state.food+1); state.hunger=Math.max(0,state.hunger-7); addJournal("Gathered edible greens","He found a small amount of food near the old garden.","♧"); notify("Found a little food."); }
+        else if (roll < .76) { state.wood=Math.min(12,state.wood+2); addJournal("Collected fallen branches","Two armfuls of wood, dry enough to store under the eaves.","♧"); notify("Collected wood for repairs or a fire."); }
+        else { state.water=Math.min(8,state.water+1); state.thirst=Math.max(0,state.thirst-10); addJournal("Collected water","He cleaned and filled a container at the well.","◉"); notify("Water stores replenished."); }
+        state.energy=Math.max(0,state.energy-7);
+      },
+      explore() {
+        state.energy=Math.max(0,state.energy-12);
+        if (!state.exploredVillage) {
+          state.exploredVillage=true; state.scrap=Math.min(5,state.scrap+1); state.wood=Math.min(12,state.wood+1);
+          addJournal("Followed the old village road","He found a rusted tin box and a few usable pieces of metal beneath a fallen awning.","⌖");
+          notify("New area discovered: Old village road.");
+        } else if (!state.exploredBackwater) {
+          state.exploredBackwater=true; state.food=Math.min(10,state.food+2); state.water=Math.min(8,state.water+1);
+          addJournal("Reached the backwater edge","The water is calm here. A weather-beaten fishing net lies tangled in reeds.","⌖");
+          notify("New area discovered: Backwater edge.");
         } else {
-          addEvent("NEED", "The empty vessel", "He checks the water container again. It is empty. He turns toward the old well.", at);
+          state.wood=Math.min(12,state.wood+1); state.food=Math.min(10,state.food+1);
+          addJournal("Explored farther along the coast","He marked a safe path through the palms and returned before dark.","⌖");
+          notify("The coastline is becoming familiar.");
         }
-        break;
-      case "eat":
-        if (s.food > 0) {
-          s.food--; s.hunger = clamp(s.hunger - 32);
-          addEvent("SURVIVAL", "A simple meal", "He eats what he has saved. It is not much, but the ache in his stomach eases.", at);
-        } else {
-          addEvent("NEED", "Nothing left to eat", "He searches his bag, then the kitchen shelf. There is nothing useful left. Tomorrow's food will have to be found outside.", at);
-        }
-        break;
-      case "forage":
-        s.energy = clamp(s.energy - 8); s.hunger = clamp(s.hunger + 5);
-        if (Math.random() < 0.74) {
-          const found = 1 + (Math.random() < .24 ? 1 : 0);
-          s.food += found;
-          addEvent("GATHERING", "Food from the overgrowth", `He searches the neglected garden and the trees beyond it. He finds ${found} ${found === 1 ? "small portion" : "portions"} of edible food, after checking carefully what is safe.`, at);
-        } else {
-          addEvent("GATHERING", "A wasted morning", "He searches the garden and the edges of the village, but finds nothing he trusts enough to eat.", at);
-        }
-        break;
-      case "collect-water":
-        s.energy = clamp(s.energy - 5);
-        if (Math.random() < .8) {
-          const found = 1 + (w.rain ? 2 : (Math.random() < .3 ? 1 : 0));
-          s.water += found;
-          addEvent("GATHERING", "Water recovered", `He draws water from the old well and sets aside ${found} ${found === 1 ? "container" : "containers"}. The rope creaks, but holds.`, at);
-        } else {
-          addEvent("DISCOVERY", "The well needs work", "The water looks cloudy. He decides not to drink it until he can boil it or find a better way to filter it.", at);
-        }
-        break;
-      case "gather-wood": {
-        const amount = 1 + (Math.random() < .45 ? 1 : 0);
-        s.wood += amount; s.energy = clamp(s.energy - 11); s.hunger = clamp(s.hunger + 4);
-        addEvent("GATHERING", "Wood for repairs", `He gathers ${amount} ${amount === 1 ? "bundle" : "bundles"} of fallen branches and usable timber. He avoids the rotten beams inside the nearest ruined house.`, at);
-        break;
       }
-      case "search-ruins":
-        s.energy = clamp(s.energy - 13); s.hunger = clamp(s.hunger + 5);
-        if (Math.random() < .66) {
-          const scrap = 1 + (Math.random() < .35 ? 1 : 0);
-          s.scrap += scrap;
-          addEvent("EXPLORATION", "Something worth keeping", `Inside a house half-swallowed by vines, he finds ${scrap} ${scrap === 1 ? "piece" : "pieces"} of metal and hardware. The rest has rusted beyond use.`, at);
-          if (!w.discoveries.includes("Abandoned village")) {
-            w.discoveries.push("Abandoned village");
-            addEvent("DISCOVERY", "The village has a name", "A cracked sign lies beside the road. Most of the lettering is gone, but the place is now a little less anonymous.", at + .01);
-          }
-        } else {
-          addEvent("EXPLORATION", "The ruined house", "He searches a nearby house. The roof has collapsed and the rooms smell of wet timber. He leaves with nothing but dust on his hands.", at);
-        }
-        break;
-      case "rest":
-        s.energy = clamp(s.energy + 28); s.health = clamp(s.health + 2);
-        addEvent("REST", "Rest beneath the old roof", "He lies down while rain ticks against the tiles. For a while, there is no work to do and nowhere he needs to be.", at);
-        break;
-      case "repair":
-        if (s.wood >= 2) {
-          s.wood -= 2; s.energy = clamp(s.energy - 9); w.shelter = "Repaired house";
-          if (!w.structures.includes("Repaired house")) w.structures.push("Repaired house");
-          addEvent("CONSTRUCTION", "The roof holds", "He replaces two rotten supports and patches a gap in the roof. The house is still old, but the next rain may stay outside.", at);
-        } else {
-          addEvent("WORK", "A repair postponed", "He inspects the damaged roof. He needs more sound timber before he can make a repair that will last.", at);
-        }
-        break;
-      case "rain-collector":
-        if (s.wood >= 3 && s.scrap >= 1) {
-          s.wood -= 3; s.scrap -= 1; s.energy = clamp(s.energy - 12);
-          w.structures.push("Rainwater collector");
-          w.waterSource = "Well + rain collector";
-          addEvent("CONSTRUCTION", "A rainwater collector", "Using timber, scrap metal and a piece of guttering, he builds a crude collector beside the house. It will only help when the rain returns.", at);
-        } else {
-          addEvent("WORK", "A plan for rain", "He studies the roofline and imagines a way to catch rainwater. He needs three bundles of wood and a usable piece of scrap metal.", at);
-        }
-        break;
-      case "travel":
-        s.energy = clamp(s.energy - 18); s.hunger = clamp(s.hunger + 8); s.thirst = clamp(s.thirst + 6);
-        if (!w.knownRegions.includes("The inland road")) {
-          w.knownRegions.push("The inland road");
-          w.currentLocation = "The inland road";
-          addEvent("EXPLORATION", "Beyond the last houses", "He follows the broken road inland, past empty courtyards and a bus tilted into the weeds. For the first time, the abandoned village is behind him.", at);
-          addEvent("DISCOVERY", "The inland road", "A road leads toward the hills. It is cracked and overgrown, but it still points somewhere. The world may be larger than this village.", at + .02);
-        } else if (!w.knownRegions.includes("The old market town")) {
-          w.knownRegions.push("The old market town");
-          w.currentLocation = "The old market town";
-          addEvent("EXPLORATION", "The old market town", "After a long walk, he reaches a small market town. Shopfronts stand open to the weather. He will need to plan carefully before coming this far again.", at);
-          addEvent("DISCOVERY", "A wider world", "The town opens a new horizon: more buildings, more possible supplies, and a longer journey home.", at + .02);
-        } else {
-          w.currentLocation = pick(["The old house", "The inland road", "The old market town"], state.eventCount);
-          addEvent("TRAVEL", "A road walked again", `He travels back toward ${w.currentLocation.toLowerCase()}, carrying what he can and leaving the rest for another day.`, at);
-        }
-        break;
-      case "sleep":
-        s.energy = clamp(s.energy + 45); s.hunger = clamp(s.hunger + 8); s.thirst = clamp(s.thirst + 7);
-        addEvent("REST", "Night settles", "He makes the house as secure as he can, then sleeps. Outside, the palms move in the wind and the empty road remains empty.", at);
-        break;
-      case "weather":
-        addEvent("WEATHER", w.rain ? "The monsoon returns" : "The rain passes", w.rain ? "Rain moves in from the sea, soaking the red earth and dripping from the broken eaves." : "The rain thins to a distant grey curtain. The air remains heavy and warm.", at);
-        break;
-      case "autonomous":
-        autonomousAction();
-        break;
-    }
-    changeMood();
-    updateSceneForLocation();
-  }
-
-  function autonomousAction() {
-    const s = state.survivor, w = state.world, hour = dateParts(state.simMs).hour;
-    // Priorities are needs first, then safety, then useful work and exploration.
-    if (s.thirst > 68) { actionEvent("drink"); if (s.thirst > 60 && s.water === 0) actionEvent("collect-water"); return; }
-    if (s.hunger > 70) { actionEvent("eat"); if (s.food === 0) actionEvent("forage"); return; }
-    if (s.energy < 18) { actionEvent("sleep"); return; }
-    if (s.health < 55 && s.energy < 50) { actionEvent("rest"); return; }
-    if (hour >= 21 || hour < 5) { actionEvent("sleep"); return; }
-    if (w.shelter === "Abandoned house" && s.wood >= 2 && Math.random() < .65) { actionEvent("repair"); return; }
-    if (!w.structures.includes("Rainwater collector") && s.wood >= 3 && s.scrap >= 1 && Math.random() < .55) { actionEvent("rain-collector"); return; }
-    const roll = Math.random();
-    if (s.water < 2 || (w.rain && Math.random() < .25)) actionEvent("collect-water");
-    else if (s.food < 3) actionEvent("forage");
-    else if (s.wood < 3 && Math.random() < .6) actionEvent("gather-wood");
-    else if (s.scrap < 1 || roll < .24) actionEvent("search-ruins");
-    else if (!w.knownRegions.includes("The inland road") && state.eventCount > 10 && s.energy > 45 && Math.random() < .24) actionEvent("travel");
-    else if (roll < .62) actionEvent("gather-wood");
-    else actionEvent("rest");
-  }
-
-  function processHour() {
-    const s = state.survivor, w = state.world;
-    const p = dateParts(state.simMs);
-    // Passive survival costs per simulated hour.
-    s.hunger = clamp(s.hunger + 1.45);
-    s.thirst = clamp(s.thirst + (w.temperature >= 31 ? 2.1 : 1.55));
-    if (s.hunger >= 92) s.health = clamp(s.health - 1.4);
-    if (s.thirst >= 90) s.health = clamp(s.health - 2.3);
-    if (w.rain && w.structures.includes("Rainwater collector")) {
-      if (Math.random() < .16) { s.water += 1; addEvent("WORLD", "The collector fills", "Rainwater drips into the container beside the house. A small improvement, quietly doing its work.", state.simMs / HOUR_MS); }
-    }
-    if (w.build) {
-      w.build.progress += 1;
-      if (w.build.progress >= w.build.hours) {
-        const name = w.build.name;
-        if (!w.structures.includes(name)) w.structures.push(name);
-        w.build = null;
-        addEvent("CONSTRUCTION", `${name} completed`, `After hours of steady work, he finishes ${name.toLowerCase()}. The settlement is a little more capable than it was yesterday.`, state.simMs / HOUR_MS);
-      }
-    }
-    if (Math.random() < .08) {
-      const wasRain = w.rain;
-      w.rain = Math.random() < .34;
-      w.weather = w.rain ? "Monsoon rain" : pick(["Overcast", "Humid", "Clearing"], p.day + p.hour);
-      w.temperature = w.rain ? 26 + Math.floor(Math.random() * 3) : 28 + Math.floor(Math.random() * 5);
-      if (wasRain !== w.rain) actionEvent("weather");
-    }
-    // The survivor makes a meaningful decision roughly every 1–2.5 simulated hours.
-    if (state.simMs / HOUR_MS >= state.nextEventAt) {
-      autonomousAction();
-      state.nextEventAt = state.simMs / HOUR_MS + 1.1 + Math.random() * 1.5;
-    }
-    if (p.hour === 0) {
-      w.dayCount = p.day;
-      if (p.day % 7 === 0) addEvent("PASSAGE OF TIME", `A week without a voice`, `Seven days have passed. The weather has changed, supplies have been used, and the world remains without an answer.`, state.simMs / HOUR_MS);
-    }
-  }
-
-  function advanceSimulation(deltaMs) {
-    if (deltaMs <= 0 || state.paused) return;
-    const startMs = state.simMs;
-    const targetMs = startMs + deltaMs;
-    const beforeHour = Math.floor(startMs / HOUR_MS);
-    const afterHour = Math.floor(targetMs / HOUR_MS);
-    const steps = Math.min(afterHour - beforeHour, 7 * 24);
-    for (let i = 1; i <= steps; i++) {
-      // Process at each crossed hour; this also keeps offline catch-up bounded.
-      const simulatedHour = beforeHour + i;
-      state.simMs = simulatedHour * HOUR_MS;
-      processHour();
-    }
-    state.simMs = targetMs;
-    changeMood();
-  }
-
-  function updateSceneForLocation() {
-    const w = state.world;
-    const map = {
-      "The old house": ["KERALA · COASTAL SETTLEMENT", "The old house", "A red-tiled roof. A well gone green. The sea beyond the palms, with no ship on it.", "LOCATION 001 · ORIGIN"],
-      "The inland road": ["KERALA · INLAND ROAD", "Beyond the last houses", "The road leads inland through weeds and abandoned courtyards. Somewhere beyond the trees, the hills rise.", "LOCATION 002 · DISCOVERED"],
-      "The old market town": ["KERALA · OLD MARKET TOWN", "The silent market", "Shopfronts stand open to the weather. A place built for crowds, now waiting for footsteps.", "LOCATION 003 · DISCOVERED"]
     };
-    const view = map[w.currentLocation] || map["The old house"];
-    $("region-label").textContent = view[0];
-    $("scene-title").textContent = view[1];
-    $("scene-description").textContent = view[2];
-    $("scene-kicker").textContent = view[3];
-    $("weather-label").textContent = `${w.weather.toUpperCase()} · ${w.temperature}°C`;
-    const figure = $("figure");
-    if (w.currentLocation === "The inland road") figure.style.left = "68%";
-    else if (w.currentLocation === "The old market town") figure.style.left = "49%";
-    else figure.style.left = "57%";
-    document.querySelector(".world-stage").classList.toggle("rainy", w.rain);
+    (actions[type] || actions.gather)();
+    save(); render(); tone();
   }
-
-  function renderEvents() {
-    const target = $("chronicle");
-    const events = state.log.slice(0, state.historyExpanded ? 50 : 6);
-    target.innerHTML = events.map(e => {
-      const at = Math.max(0, e.at * HOUR_MS);
-      const p = dateParts(at);
-      return `<article class="event"><div class="event-time">DAY ${String(e.day).padStart(2,"0")}<span class="event-type">${escapeHtml(e.type)}</span></div><div><h3>${escapeHtml(e.title)}</h3><p>${escapeHtml(e.text)}</p></div></article>`;
-    }).join("");
-    $("show-history").textContent = state.historyExpanded ? "SHOW RECENT EVENTS ↑" : "VIEW EARLIER EVENTS ↗";
+  function notify(message) {
+    const t=$("toast"); t.textContent=message; t.classList.add("show");
+    clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),2800);
   }
-  function escapeHtml(value) {
-    return String(value).replace(/[&<>"']/g, ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[ch]));
-  }
-  function renderRegions() {
-    const known = state.world.knownRegions;
-    const cards = known.map((name, i) => {
-      const desc = name === "Coastal Kerala" ? "The old house, well, village gardens and the edge of the sea." : name === "The inland road" ? "A broken road leading away from the coast, lined with empty homes." : "A small town of abandoned shops, storage rooms and weathered buildings.";
-      return `<article class="region-card"><span class="region-number">KNOWN REGION 00${i+1}</span><h3>${escapeHtml(name)}</h3><p>${escapeHtml(desc)}</p></article>`;
-    });
-    if (known.length < 3) cards.push(`<article class="region-card unknown"><span class="region-number">BEYOND THE HORIZON</span><h3>Unknown</h3><p>No record yet. The world ends where his knowledge does.</p></article>`);
-    $("regions").innerHTML = cards.join("");
-    $("regions-count").textContent = `${known.length} REGION${known.length === 1 ? "" : "S"} KNOWN`;
+  function tone() {
+    if (!soundEnabled) return;
+    try {
+      audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+      const osc=audioContext.createOscillator(), gain=audioContext.createGain();
+      osc.type="sine"; osc.frequency.value=440; gain.gain.value=.025;
+      osc.connect(gain); gain.connect(audioContext.destination); osc.start();
+      gain.gain.exponentialRampToValueAtTime(.001,audioContext.currentTime+.12); osc.stop(audioContext.currentTime+.12);
+    } catch {}
   }
   function render() {
-    const s = state.survivor, w = state.world, p = dateParts(state.simMs);
-    $("sim-date").textContent = `YEAR ${Math.floor((p.day - 1) / 365) + 1} · DAY ${p.day}`;
-    $("time-label").textContent = timeString(state.simMs);
-    $("day-progress").style.width = `${(state.simMs % DAY_MS) / DAY_MS * 100}%`;
-    $("hunger-value").textContent = `${Math.round(s.hunger)}%`; $("hunger-bar").style.width = `${s.hunger}%`;
-    $("thirst-value").textContent = `${Math.round(s.thirst)}%`; $("thirst-bar").style.width = `${s.thirst}%`;
-    $("health-value").textContent = `${Math.round(s.health)}%`; $("health-bar").style.width = `${s.health}%`;
-    $("energy-value").textContent = `${Math.round(s.energy)}%`; $("energy-bar").style.width = `${s.energy}%`;
-    ["food","water","wood","scrap"].forEach(k => $(`${k}-value`).textContent = s[k]);
-    $("survivor-mood").textContent = s.mood;
-    $("shelter-value").textContent = w.shelter;
-    $("food-source").textContent = w.foodSource;
-    $("water-source").textContent = w.waterSource;
-    $("structure-count").textContent = w.structures.length;
-    $("pause-button").textContent = state.paused ? "RESUME" : "PAUSE";
-    $("sound-button").textContent = state.soundOn ? "SOUND ON" : "SOUND OFF";
-    $("world-status").textContent = state.paused ? "WORLD PAUSED" : "WORLD SIMULATING";
-    $("real-clock").textContent = new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
-    if (w.build) {
-      $("build-progress-wrap").hidden = false;
-      $("build-name").textContent = w.build.name;
-      const percent = Math.min(100, Math.round(w.build.progress / w.build.hours * 100));
-      $("build-percent").textContent = `${percent}%`; $("build-bar").style.width = `${percent}%`;
-    } else $("build-progress-wrap").hidden = true;
-    updateSceneForLocation(); renderEvents(); renderRegions();
+    $("dateLabel").textContent=`YEAR ${Math.floor((state.day-1)/365)+1}  ·  DAY ${state.day}`;
+    $("clock").textContent=formatClock(state.minutes);
+    $("dayPart").textContent=dayPart(state.minutes);
+    $("weatherName").textContent=state.day%4===0?"Monsoon showers":state.day%3===0?"Sea breeze":"Coastal mist";
+    $("weatherNote").textContent=state.day%4===0?"Heavy rain later":"Clouds gathering offshore";
+    $("weatherIcon").textContent=state.day%4===0?"☂":state.day%3===0?"≋":"☁";
+    $("statusText").textContent=state.paused?"Time has stopped":state.health<35?"He is growing weaker":state.actionCount>4?"A quiet rhythm is forming":"The world is quiet";
+    $("sceneCaption").textContent=state.day>4?"The days are beginning to find a rhythm.":"A new day waits beyond the trees.";
+    setMeter("health",state.health); setMeter("hunger",state.hunger); setMeter("thirst",state.thirst); setMeter("energy",state.energy);
+    $("condition").textContent=state.health>75?"Stable":state.health>40?"Worn down":"Critical";
+    $("shelterState").textContent=["Open shelter","Patched roof","Reinforced house","Secure homestead"][state.shelter] || "Abandoned house";
+    $("fireState").textContent=state.fire?"Burning / ready":"Cold";
+    $("toolsState").textContent=state.tools?"Hand tool made":"Makeshift";
+    $("foodState").textContent=`${state.food} portion${state.food===1?"":"s"}`;
+    $("waterState").textContent=`${state.water} container${state.water===1?"":"s"}`;
+    $("villageState").textContent=state.exploredVillage?"Explored · salvage found":"Not yet explored";
+    $("backwaterState").textContent=state.exploredBackwater?"Explored · fishing net found":"Beyond the palms";
+    $("simulationState").textContent=state.paused?"WORLD PAUSED":"WORLD SIMULATING";
+    $("stateLed").classList.toggle("paused",state.paused);
+    $("pauseBtn").textContent=state.paused?"Resume time":"Pause time";
+    $("journalList").innerHTML=state.journal.map(e=>`<article class="journal-entry"><time>${escapeHtml(e.time)}</time><span class="entry-icon">${escapeHtml(e.icon)}</span><div><div class="entry-title">${escapeHtml(e.title)}</div><div class="entry-detail">${escapeHtml(e.detail)}</div></div></article>`).join("");
+    $("elapsedLabel").textContent=`Day ${state.day} · ${dayPart(state.minutes).toLowerCase()}`;
+    save();
   }
+  function setMeter(name,val) { const n=Math.max(0,Math.min(100,Math.round(val))); $(name+"Bar").style.width=n+"%"; $(name+"Value").textContent=n; }
+  function escapeHtml(s) { return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
-  function toast(message) {
-    const el = $("toast"); el.textContent = message; el.classList.add("show");
-    clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2600);
-  }
-  function catchUp() {
-    const now = Date.now();
-    const last = Number(state.lastRealTime || now);
-    const elapsed = Math.max(0, Math.min(now - last, MAX_OFFLINE_MS));
-    if (elapsed > 60 * 1000 && !state.paused) {
-      advanceSimulation(elapsed);
-      const days = elapsed / DAY_MS;
-      if (days >= .95) addEvent("RETURN", "Time passed without a witness", `While nobody was here, approximately ${days.toFixed(1)} simulated day${days >= 1.95 ? "s" : ""} passed. He continued with the work and needs of an ordinary life.`, state.simMs / HOUR_MS);
-      else addEvent("RETURN", "The world kept time", "Some time passed while the page was closed. His needs and the world have been updated from the elapsed time.", state.simMs / HOUR_MS);
-    }
-    state.lastRealTime = now;
-    saveState();
-  }
-  function resetWorld() {
-    if (!confirm("Start a new world? This permanently erases the saved Year Zero simulation in this browser.")) return;
-    state = initialState(); saveState(); render(); toast("A new world begins.");
-  }
-  function toggleSound() {
-    state.soundOn = !state.soundOn;
-    if (state.soundOn) {
-      try {
-        const AudioCtx = window.AudioContext || window.webkitAudioContext;
-        if (AudioCtx) {
-          audioContext = audioContext || new AudioCtx();
-          const oscillator = audioContext.createOscillator();
-          const gain = audioContext.createGain();
-          oscillator.type = "sine"; oscillator.frequency.value = 68;
-          gain.gain.value = 0.018; oscillator.connect(gain); gain.connect(audioContext.destination);
-          oscillator.start(); oscillator.stop(audioContext.currentTime + 0.18);
-        }
-      } catch (_) {}
-      toast("Ambient sound is experimental and minimal.");
-    }
-    saveState(); render();
-  }
-
-  state = loadState();
-  catchUp();
+  document.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>act(btn.dataset.action)));
+  document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{
+    document.querySelectorAll("[data-tab]").forEach(b=>{const active=b===btn;b.classList.toggle("active",active);b.setAttribute("aria-selected",String(active));});
+    document.querySelectorAll("[data-panel]").forEach(p=>{const active=p.dataset.panel===btn.dataset.tab;p.hidden=!active;p.classList.toggle("active",active);});
+  }));
+  document.querySelectorAll(".memory").forEach((btn,i)=>btn.addEventListener("click",()=>{
+    document.querySelectorAll(".memory").forEach(b=>b.classList.remove("active")); btn.classList.add("active");
+    const labels=["The house is still. He wakes and listens.","He checks the old well and brings water back.","The tide has left scraps along the shore.","He searches the edge of the village for supplies.","A small fire keeps the dark at a distance."];
+    $("sceneCaption").textContent=labels[i]; notify(btn.querySelector("span:last-child").textContent+" · remembered moment");
+  }));
+  $("pauseBtn").addEventListener("click",()=>{state.paused=!state.paused;addJournal(state.paused?"Time paused":"Time resumed",state.paused?"The world holds its breath.":"The day begins moving again.",state.paused?"Ⅱ":"▶");save();render();});
+  $("soundBtn").addEventListener("click",()=>{soundEnabled=!soundEnabled;$("soundBtn").textContent=soundEnabled?"Sound on":"Sound off";$("soundBtn").setAttribute("aria-pressed",String(soundEnabled));if(soundEnabled)tone();});
+  $("resetBtn").addEventListener("click",()=>{if(confirm("Reset Year Zero? The saved world in this browser will be replaced with a new beginning.")){state=initialState();save();render();notify("A new beginning. Day one.");}});
+  document.addEventListener("visibilitychange",()=>{if(document.hidden)save();});
+  window.addEventListener("pagehide",save);
+  setInterval(()=>{if(!state.paused){advance(1000);render();}},1000);
   render();
-
-  $("pause-button").addEventListener("click", () => {
-    state.paused = !state.paused; saveState(); render();
-    toast(state.paused ? "The simulation is paused." : "The world resumes.");
-  });
-  $("sound-button").addEventListener("click", toggleSound);
-  $("reset-button").addEventListener("click", resetWorld);
-  $("show-history").addEventListener("click", () => { state.historyExpanded = !state.historyExpanded; renderEvents(); });
-  window.addEventListener("beforeunload", saveState);
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveState(); });
-
-  let lastFrame = Date.now();
-  setInterval(() => {
-    const now = Date.now();
-    const delta = Math.min(now - lastFrame, 60 * 1000);
-    lastFrame = now;
-    if (!state.paused) {
-      advanceSimulation(delta);
-      saveState();
-      render();
-    } else {
-      state.lastRealTime = now;
-      render();
-    }
-  }, 5000);
-
-  // Seed an early, low-frequency scene event so the world is not a static dashboard.
-  if (!state._firstRunObserved) {
-    state._firstRunObserved = true;
-    saveState();
-  }
 })();
