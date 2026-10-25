@@ -1,13 +1,146 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0c1211"><title>Year Zero — A Living World</title><link rel="stylesheet" href="styles.css"></head>
-<body><main class="app"><section class="world"><div class="landscape"></div><div class="shade"></div>
-<header><div><div class="logo">YEAR ZERO</div><div class="tag">A LIVING WORLD · ONE SURVIVOR · THE BIRTH OF CIVILIZATION</div></div><div class="weather"><span id="weatherIcon">☁</span><div><b id="weather">Coastal mist</b><small id="weatherNote">Humidity over the palms</small></div><div class="clock"><b id="clock">06:15</b><small id="part">Morning</small></div></div></header>
-<div class="place"><small id="date">YEAR 1 · DAY 1</small><h1 id="region">Kerala Coast, India</h1><p>● <span id="mood">The world is quiet.</span></p></div>
-<div class="caption"><span></span><div><small>FIELD OBSERVATION</small><p id="observation">A man wakes in a house the forest is slowly reclaiming.</p></div></div>
-<div class="needs"><div class="need"><label>♥ Health</label><div><i id="healthBar"></i></div><b id="healthN">92</b></div><div class="need"><label>◒ Hunger</label><div><i id="hungerBar"></i></div><b id="hungerN">25</b></div><div class="need"><label>◉ Thirst</label><div><i id="thirstBar"></i></div><b id="thirstN">20</b></div><div class="need"><label>ϟ Energy</label><div><i id="energyBar"></i></div><b id="energyN">76</b></div></div>
-<div class="observer">OBSERVER MODE · The survivor chooses his own actions.</div></section>
-<aside><nav><button class="tab active" data-tab="chronicle">Chronicle</button><button class="tab" data-tab="life">Life</button><button class="tab" data-tab="world">World</button></nav>
-<section class="panel" id="chronicle"><small class="section">THE RECORD</small><h2>Life goes on.</h2><p class="intro">A day-by-day record of one life continuing after the end.</p><div id="events"></div></section>
-<section class="panel" id="life" hidden><small class="section">CURRENT CONDITION</small><h2>One life,<br>many needs.</h2><p class="intro">Actions are autonomous. Priorities influence choices; they do not control every move.</p><div class="stats"><div><span>Activity</span><b id="activity">Waking</b></div><div><span>Shelter</span><b id="shelter">Leaking coastal house</b></div><div><span>Food</span><b id="food">3 portions</b></div><div><span>Water</span><b id="water">2 containers</b></div><div><span>Wood</span><b id="wood">4 bundles</b></div><div><span>Materials</span><b id="materials">1 piece</b></div><div><span>Tools</span><b id="tools">None</b></div><div><span>Fire</span><b id="fire">Cold hearth</b></div></div><label class="priority">Priority to encourage<select id="priority"><option value="balanced">Balanced survival</option><option value="food">Find food</option><option value="water">Find water</option><option value="shelter">Repair shelter</option><option value="explore">Explore carefully</option><option value="rest">Rest and recover</option></select></label><p class="hint">A gentle bias, not a command queue.</p></section>
-<section class="panel" id="world" hidden><small class="section">KNOWN TERRITORY</small><h2>A small beginning.</h2><p class="intro">Knowledge of the land grows as the survivor ventures out. No map or quest markers.</p><div id="regions"></div><p class="world-note">New regions can become known through exploration. A larger civilization would depend on survival, tools, shelter and accumulated resources.</p><div class="days">Days survived <b id="days">1</b></div></section>
-<footer><small id="sim">● WORLD SIMULATING</small><div><button id="pause">Pause</button><button id="save">Save now</button><button id="reset">Restart world</button></div><small id="saveLabel">Saved in this browser</small></footer></aside></main><div id="toast" role="status"></div><script src="app.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101815">
+  <meta name="description" content="Humanity ended. One life continued. Watch a survivor build a future on the Kerala coast.">
+  <title>Year Zero — A living world</title>
+  <link rel="preload" href="assets/year-zero-scene.png" as="image">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a class="skip-link" href="#chroniclePanel">Skip to the chronicle</a>
+  <main class="app">
+    <section class="world" aria-labelledby="worldHeading">
+      <div class="landscape" aria-hidden="true"></div>
+      <div class="shade" aria-hidden="true"></div>
+      <div class="scene-content">
+        <header class="masthead">
+          <div class="brand">
+            <p class="logo">Year Zero</p>
+            <p class="tagline">Humanity ended. One life continued. A new world begins.</p>
+          </div>
+          <div class="weather" id="weatherBlock" data-weather="mist" aria-label="Current weather">
+            <span class="weather-mark" id="weatherIcon" aria-hidden="true">≈</span>
+            <div class="weather-copy"><strong id="weatherName">Coastal mist</strong><span id="weatherNote">The air is still over the palms.</span></div>
+            <div class="clock"><strong id="clock">06:15</strong><span id="dayPart">Morning</span></div>
+          </div>
+        </header>
+
+        <div class="place">
+          <p class="sim-date" id="dateLabel">Year 1 · 1 January</p>
+          <h1 id="worldHeading">Kerala coast</h1>
+          <p class="world-status"><span class="status-mark" aria-hidden="true"></span><span id="statusText">The world is quiet.</span></p>
+        </div>
+
+        <div class="scene-observation">
+          <span class="observation-rule" aria-hidden="true"></span>
+          <div><span class="observation-label">What is happening</span><p id="observation">He wakes in the abandoned coastal house.</p></div>
+        </div>
+
+        <section class="needs" aria-label="Survivor's current condition">
+          <div class="need"><label for="healthMeter">Health</label><meter id="healthMeter" min="0" max="100" value="92">92 out of 100</meter><output id="healthValue" for="healthMeter">92</output></div>
+          <div class="need"><label for="hungerMeter">Hunger</label><meter id="hungerMeter" class="hunger-meter" min="0" max="100" value="25">25 out of 100</meter><output id="hungerValue" for="hungerMeter">25</output></div>
+          <div class="need"><label for="thirstMeter">Thirst</label><meter id="thirstMeter" class="thirst-meter" min="0" max="100" value="20">20 out of 100</meter><output id="thirstValue" for="thirstMeter">20</output></div>
+          <div class="need"><label for="energyMeter">Energy</label><meter id="energyMeter" class="energy-meter" min="0" max="100" value="76">76 out of 100</meter><output id="energyValue" for="energyMeter">76</output></div>
+        </section>
+        <p class="observer-note">Observer mode <span aria-hidden="true">·</span> He chooses what to do next.</p>
+      </div>
+    </section>
+
+    <aside class="side-panel" aria-label="World record and status">
+      <nav class="tabs" role="tablist" aria-label="World information">
+        <button class="tab active" id="chronicleTab" type="button" role="tab" aria-selected="true" aria-controls="chroniclePanel" data-tab="chronicle">Chronicle</button>
+        <button class="tab" id="lifeTab" type="button" role="tab" aria-selected="false" aria-controls="lifePanel" data-tab="life" tabindex="-1">Life</button>
+        <button class="tab" id="worldTab" type="button" role="tab" aria-selected="false" aria-controls="worldPanel" data-tab="world" tabindex="-1">World</button>
+      </nav>
+
+      <section class="panel chronicle-panel" id="chroniclePanel" role="tabpanel" aria-labelledby="chronicleTab" data-panel="chronicle" tabindex="0">
+        <div class="panel-heading"><span class="section-label">The record</span><span class="live-status"><i aria-hidden="true"></i>Live world</span></div>
+        <h2>Life goes on.</h2>
+        <p class="intro">A record of what this life actually brings.</p>
+        <div class="filters" role="group" aria-label="Filter chronicle entries">
+          <button type="button" class="filter active" data-filter="all" aria-pressed="true">All</button>
+          <button type="button" class="filter" data-filter="survival" aria-pressed="false">Survival</button>
+          <button type="button" class="filter" data-filter="discovery" aria-pressed="false">Discoveries</button>
+          <button type="button" class="filter" data-filter="construction" aria-pressed="false">Building</button>
+          <button type="button" class="filter" data-filter="environment" aria-pressed="false">Weather</button>
+          <button type="button" class="filter" data-filter="milestone" aria-pressed="false">Milestones</button>
+        </div>
+        <div class="event-list" id="eventList"></div>
+        <p class="empty-state" id="emptyEvents" hidden>No entries in this part of the record yet.</p>
+      </section>
+
+      <section class="panel" id="lifePanel" role="tabpanel" aria-labelledby="lifeTab" data-panel="life" tabindex="0" hidden>
+        <div class="panel-heading"><span class="section-label">One life, every day</span></div>
+        <h2>Current condition.</h2>
+        <p class="intro">His needs, work, and plans change with the world around him.</p>
+        <dl class="detail-list">
+          <div><dt>Current activity</dt><dd id="activity">Listening to the coast</dd></div>
+          <div><dt>Long-term intention</dt><dd id="goal">Keep a dependable water supply</dd></div>
+          <div><dt>Morale</dt><dd id="morale">68 / 100</dd></div>
+          <div><dt>Weather exposure</dt><dd id="exposure">0 / 100</dd></div>
+          <div><dt>Injury</dt><dd id="injury">None</dd></div>
+          <div><dt>Shelter</dt><dd id="shelter">Leaking coastal house</dd></div>
+          <div><dt>Hearth</dt><dd id="fire">Cold</dd></div>
+        </dl>
+        <h3>Carried supplies</h3>
+        <dl class="detail-list inventory-list">
+          <div><dt>Food</dt><dd id="food">3 portions</dd></div>
+          <div><dt>Water</dt><dd id="water">2 containers</dd></div>
+          <div><dt>Wood</dt><dd id="wood">4 bundles</dd></div>
+          <div><dt>Salvage</dt><dd id="materials">1 usable piece</dd></div>
+          <div><dt>Hand tool</dt><dd id="tools">Not made</dd></div>
+        </dl>
+        <h3>Learned through work</h3>
+        <dl class="detail-list skill-list">
+          <div><dt>Foraging</dt><dd id="foragingSkill">0 tasks</dd></div>
+          <div><dt>Repairs</dt><dd id="repairSkill">0 tasks</dd></div>
+          <div><dt>Navigation</dt><dd id="navigationSkill">0 routes</dd></div>
+          <div><dt>Crafting</dt><dd id="craftingSkill">0 tools</dd></div>
+        </dl>
+        <label class="priority" for="prioritySelect">Encourage a priority
+          <select id="prioritySelect">
+            <option value="balanced">Balanced survival</option>
+            <option value="food">Find food</option>
+            <option value="water">Find water</option>
+            <option value="shelter">Repair shelter</option>
+            <option value="explore">Explore carefully</option>
+            <option value="rest">Rest and recover</option>
+          </select>
+        </label>
+        <p class="hint">This gently weights his choices. It does not control him.</p>
+      </section>
+
+      <section class="panel" id="worldPanel" role="tabpanel" aria-labelledby="worldTab" data-panel="world" tabindex="0" hidden>
+        <div class="panel-heading"><span class="section-label">Known territory</span></div>
+        <h2>A small beginning.</h2>
+        <p class="intro">The coast becomes familiar one real journey at a time.</p>
+        <div id="regionList" class="region-list"></div>
+        <div class="world-facts">
+          <p><span>Simulated days</span><strong id="daysSurvived">1</strong></p>
+          <p><span>Places discovered</span><strong id="placesKnown">1</strong></p>
+          <p><span>Last discovery</span><strong id="lastDiscovery">None yet</strong></p>
+        </div>
+        <p class="world-note">A permanent settlement is not guaranteed. Food, water, shelter, tools, and local knowledge must come first.</p>
+      </section>
+
+      <footer class="panel-footer">
+        <div class="simulation-state"><span class="state-led" id="stateLed" aria-hidden="true"></span><span id="simulationState">World simulating</span></div>
+        <div class="footer-actions">
+          <button type="button" id="pauseButton" class="text-button">Pause time</button>
+          <button type="button" id="saveButton" class="text-button">Save now</button>
+          <button type="button" id="resetButton" class="text-button reset-button">Restart world</button>
+        </div>
+        <p class="save-label" id="saveLabel">Saved in this browser</p>
+        <p class="save-warning" id="saveWarning" role="status" hidden></p>
+      </footer>
+    </aside>
+  </main>
+  <p class="sr-only" id="announcer" role="status" aria-live="polite"></p>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

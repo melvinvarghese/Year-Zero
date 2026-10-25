@@ -1,18 +1,390 @@
-(()=>{'use strict';
-const DAY_MS=900000,KEY='year-zero-world-v4',$=id=>document.getElementById(id);
-const fresh=()=>({day:1,minute:375,lastReal:Date.now(),paused:false,priority:'balanced',health:92,hunger:25,thirst:20,energy:76,food:3,water:2,wood:4,materials:1,shelter:0,fire:false,tools:false,exploredVillage:false,exploredBackwater:false,activity:'Waking',events:[{time:'06:15',icon:'⌂',title:'Woke in the abandoned house',text:'The roof leaks in two places. The air smells of wet timber and salt.'},{time:'06:25',icon:'◉',title:'Checked the water containers',text:'Two containers remain. The well outside may still be usable.'},{time:'06:40',icon:'♧',title:'Counted the food',text:'Three small portions. He will need to find more before long.'}],regions:[{name:'Coastal homestead',detail:'Shelter, well, and overgrown garden',known:true},{name:'Old village road',detail:'Not yet explored',known:false},{name:'Backwater edge',detail:'Beyond the palms',known:false},{name:'Wider coastline',detail:'Unknown territory',known:false}]});
-let s=load(),toastTimer;
-function load(){try{let v=localStorage.getItem(KEY);if(!v)return fresh();let x={...fresh(),...JSON.parse(v)};if(!x.paused)simulate(Math.min( Date.now()-(x.lastReal||Date.now()),7*DAY_MS),x,false);x.lastReal=Date.now();return x}catch{return fresh()}}
-function save(){s.lastReal=Date.now();try{localStorage.setItem(KEY,JSON.stringify(s));$('saveLabel').textContent='Saved locally · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}catch{}}
-function clock(m){m=((Math.floor(m)%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0')}
-function part(){let h=Math.floor(s.minute/60)%24;return h<5||h>=19?'Night':h<11?'Morning':h<16?'Afternoon':'Evening'}
-function add(title,text,icon='•',x=s){x.events.unshift({time:clock(x.minute),icon,title,text});x.events=x.events.slice(0,30)}
-function cap(n){return Math.max(0,Math.min(100,n))}
-function simulate(ms,x=s,log=true){let left=ms;while(left>0){let dt=Math.min(1000,left);left-=dt;let oldDay=x.day,oldHour=Math.floor(x.minute/60);x.minute+=dt/DAY_MS*1440;x.hunger=cap(x.hunger+dt/DAY_MS*2.5);x.thirst=cap(x.thirst+dt/DAY_MS*3.3);x.energy=cap(x.energy+dt/DAY_MS*(x.activity==='Resting'?7:-1.3));if(x.minute>=1440){x.minute-=1440;x.day++;if(x.food>0){x.food--;x.hunger=cap(x.hunger-23)}if(x.water>0){x.water--;x.thirst=cap(x.thirst-27)}x.energy=cap(x.energy+20);if(x.hunger>82||x.thirst>84)x.health=cap(x.health-4);else if(x.energy>60&&x.hunger<50&&x.thirst<50)x.health=cap(x.health+.5);if(log)add('A new day begins','He wakes to the surf and wind. His supplies are thinner than yesterday.','☼',x)}let hour=Math.floor(x.minute/60);if(log&&hour!==oldHour)autonomy(x,log)}x.lastReal=Date.now()}
-function choose(x){if(x.thirst>68||x.water===0)return'water';if(x.hunger>67||x.food===0)return'food';if(x.health<45||x.energy<20)return'rest';if(x.priority==='food'&&x.food<6)return'food';if(x.priority==='water'&&x.water<4)return'water';if(x.priority==='rest'&&x.energy<75)return'rest';if(x.priority==='explore'&&x.energy>40)return'explore';if((x.priority==='shelter'||x.shelter<2)&&x.wood>=2)return'shelter';if(x.energy<32)return'rest';if(x.food<2)return'food';if(x.water<2)return'water';if(x.minute>1020||x.minute<300)return'rest';return['gather','explore','repair','rest'][Math.floor(Math.random()*4)]}
-function autonomy(x=s,log=true){if(x.paused)return;let a=choose(x);if(a==='water'){if(x.water<4){x.water++;x.thirst=cap(x.thirst-22);x.activity='Collecting water';if(log)add('Went to the well','He drew water and checked the old stone lining for cracks.','◉',x)}else{x.thirst=cap(x.thirst-7);x.activity='Cooling off';if(log)add('Rested near the well','He washed his face and sat in the shade.','◉',x)}}else if(a==='food'){if(Math.random()<.7){x.food++;x.hunger=cap(x.hunger-18);x.activity='Gathering food';if(log)add('Found something to eat','He gathered edible greens and fallen fruit from the abandoned garden.','♧',x)}else{x.activity='Searching for food';x.energy=cap(x.energy-4);if(log)add('Search came up short','Some patches of the garden have been picked clean. He will need to range farther.','♧',x)}}else if(a==='rest'){x.energy=cap(x.energy+15);x.activity='Resting';if(log)add('Stopped to rest','He finds shade and saves his strength instead of pushing on.','☼',x)}else if(a==='shelter'||a==='repair'){if(x.wood>=2){x.wood-=2;x.shelter=Math.min(3,x.shelter+1);x.activity='Repairing the house';if(log)add('Worked on the shelter','Palm fronds and salvaged timber patch a weak section of roof.','⚒',x)}else{x.wood++;x.activity='Looking for building material';if(log)add('Collected fallen wood','He gathers branches before trying another repair.','♧',x)}}else if(a==='explore'){x.energy=cap(x.energy-10);x.activity='Exploring';if(!x.exploredVillage){x.exploredVillage=true;x.regions[1].known=true;x.regions[1].detail='Explored · salvage and timber found';x.materials++;x.wood++;if(log)add('Found the old village road','A collapsed awning hides a rusted tin box and useful scraps of metal.','⌖',x)}else if(!x.exploredBackwater){x.exploredBackwater=true;x.regions[2].known=true;x.regions[2].detail='Explored · fishing net and fresh water';x.food+=2;x.water++;if(log)add('Reached the backwater','A weather-beaten fishing net lies tangled in reeds beside calm water.','⌖',x)}else{x.wood++;x.activity='Scouting the coast';if(log)add('Went farther along the coast','He learns a safer path through the palms and marks it in memory.','⌖',x)}}else{x.wood++;x.activity='Gathering wood';x.energy=cap(x.energy-5);if(log)add('Collected fallen branches','He carries dry wood home for repairs and cooking.','♧',x)}if(x.hunger>90||x.thirst>92)x.health=cap(x.health-2);if(x.health<25)x.activity='Weak and struggling'}
-function esc(v){return String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function render(){ $('date').textContent=`YEAR ${Math.floor((s.day-1)/365)+1} · DAY ${s.day}`;$('clock').textContent=clock(s.minute);$('part').textContent=part();let w=s.day%5===0?['☂','Monsoon rain','Heavy showers moving inland']:s.day%3===0?['≋','Sea breeze','Salt wind through the palms']:['☁','Coastal mist','Humidity hangs over the palms'];$('weatherIcon').textContent=w[0];$('weather').textContent=w[1];$('weatherNote').textContent=w[2];$('region').textContent=s.exploredBackwater?'Kerala Coast · Backwater edge':s.exploredVillage?'Kerala Coast · Old village road':'Kerala Coast, India';$('mood').textContent=s.health<35?'His strength is failing.':s.day>20?'A fragile routine is taking shape.':'The world is quiet.';$('observation').textContent=s.activity==='Resting'?'He sits in the shade, listening to the surf and letting his strength return.':s.activity==='Exploring'?'Beyond the familiar path, the overgrown coast keeps its secrets.':s.activity==='Collecting water'?'The well is still useful. Water means another day is possible.':s.activity==='Repairing the house'?'He works with what the old world left behind.':s.activity==='Gathering food'?'He searches the abandoned garden for anything edible.':'A man wakes in a house the forest is slowly reclaiming.';['health','hunger','thirst','energy'].forEach(k=>{$(k+'Bar').style.width=Math.round(s[k])+'%';$(k+'N').textContent=Math.round(s[k])});$('activity').textContent=s.activity;$('shelter').textContent=['Leaking coastal house','Patched coastal house','Reinforced homestead','Secure homestead'][s.shelter];$('food').textContent=s.food+' portions';$('water').textContent=s.water+' containers';$('wood').textContent=s.wood+' bundles';$('materials').textContent=s.materials+' pieces';$('tools').textContent=s.tools?'Crude hand tool':'None';$('fire').textContent=s.fire?'Ready hearth':'Cold hearth';$('events').innerHTML=s.events.map(e=>`<article class="entry"><time>${esc(e.time)}</time><span class="symbol">${esc(e.icon)}</span><div><b>${esc(e.title)}</b><p>${esc(e.text)}</p></div></article>`).join('');$('regions').innerHTML=s.regions.map((r,i)=>`<div class="region"><span class="num">${String(i+1).padStart(2,'0')}</span><div><b>${esc(r.name)}</b><small>${esc(r.detail)}</small></div><span>${r.known?'●':'○'}</span></div>`).join('');$('days').textContent=s.day;$('sim').textContent=s.paused?'Ⅱ WORLD PAUSED':'● WORLD SIMULATING';$('pause').textContent=s.paused?'Resume':'Pause';$('priority').value=s.priority;save()}
-function toast(t){$('toast').textContent=t;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2500)}
-document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.panel').forEach(p=>{p.hidden=p.id!==b.dataset.tab})}));$('priority').addEventListener('change',e=>{s.priority=e.target.value;save();toast('Priority changed. He still chooses his actions.')});$('pause').addEventListener('click',()=>{s.paused=!s.paused;add(s.paused?'World paused':'World resumed',s.paused?'Time stops until resumed.':'The day continues.','Ⅱ');render()});$('save').addEventListener('click',()=>{save();toast('World saved in this browser.')});$('reset').addEventListener('click',()=>{if(confirm('Restart from Day 1? This replaces this browser’s saved world.')){s=fresh();render();toast('A new world begins.')}});document.addEventListener('visibilitychange',()=>{if(document.hidden)save()});window.addEventListener('pagehide',save);setInterval(()=>{if(!s.paused){simulate(1000,s,true);render()}},1000);render();
-})();
+import {
+  DAY_MS,
+  LEGACY_SAVE_KEYS,
+  SAVE_KEY,
+  advanceElapsed,
+  createWorld,
+  formatSimDate,
+  getActionLabel,
+  getLongTermGoal,
+  pauseWorld,
+  restoreWorld
+} from './simulation.mjs';
+
+const $ = (id) => document.getElementById(id);
+const weatherText = {
+  mist: ['Coastal mist', 'The air is still over the palms.', '≈'],
+  breeze: ['Sea breeze', 'Salt wind moves through the palms.', '≋'],
+  rain: ['Monsoon rain', 'Rain is working at the roof and the paths.', '⌁'],
+  heat: ['Dry heat', 'The sun is drawing water from the soil.', '○']
+};
+const categoryNames = {
+  survival: 'Survival',
+  exploration: 'Exploration',
+  discovery: 'Discovery',
+  construction: 'Building',
+  environment: 'Weather',
+  milestone: 'Milestone'
+};
+const observationText = {
+  drink: 'He measures out some of the water he has stored.',
+  collectWater: 'He draws from the freshwater source at this location.',
+  eat: 'He uses one of the portions he has kept in reserve.',
+  gatherFood: 'He searches nearby ground for edible greens and fallen fruit.',
+  gatherWood: 'He gathers usable timber from this site.',
+  repairShelter: 'He works palm thatch and salvaged timber into the weakened roof.',
+  rest: 'He sits in the shade and lets his strength return.',
+  explore: 'He follows an overgrown path into unfamiliar ground.',
+  travel: 'He follows a mapped route toward a known source of supplies.',
+  returnHome: 'He retraces the known route toward the homestead.',
+  craftTool: 'He binds a piece of old-world salvage to a straight branch.',
+  makeFire: 'He shelters dry branches under the eaves and tends the small hearth.'
+};
+
+function getStorage() {
+  try { return window.localStorage; } catch { return null; }
+}
+
+const storage = getStorage();
+let saveBlocked = false;
+let storageWarning = '';
+let migrationToast = '';
+
+function preserveDamagedSave(key, raw, now) {
+  if (!storage) return false;
+  try {
+    storage.setItem(`${key}-damaged-${now}`, raw);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function loadWorld(now = Date.now()) {
+  if (!storage) {
+    return {
+      world: createWorld({ now }),
+      warning: 'Browser storage is unavailable. The world can run, but it cannot be saved on this device.',
+      blocked: true
+    };
+  }
+
+  for (const key of [SAVE_KEY, ...LEGACY_SAVE_KEYS]) {
+    let raw;
+    try { raw = storage.getItem(key); } catch {
+      return { world: createWorld({ now }), warning: 'Browser storage could not be read. This world may not persist after you leave.', blocked: true };
+    }
+    if (raw === null) continue;
+
+    const restored = restoreWorld(raw, { now });
+    if (restored.warning) {
+      const backedUp = preserveDamagedSave(key, raw, now);
+      return {
+        world: restored.world,
+        warning: backedUp
+          ? `${restored.warning} A protected copy of the damaged save was kept; a fresh world is ready to save.`
+          : `${restored.warning} Automatic saving is paused so the damaged save is not replaced.`,
+        blocked: !backedUp
+      };
+    }
+
+    if (restored.migrated || key !== SAVE_KEY) {
+      try {
+        storage.setItem(SAVE_KEY, JSON.stringify(restored.world));
+        if (key !== SAVE_KEY) storage.removeItem(key);
+        migrationToast = 'Your previous world was carried forward into the new save format.';
+      } catch {
+        storageWarning = 'Your saved world loaded, but the updated save could not be written. Check this browser’s available storage.';
+      }
+    }
+    return { world: restored.world, warning: storageWarning, blocked: false };
+  }
+
+  return { world: createWorld({ now }), warning: '', blocked: false };
+}
+
+const loaded = loadWorld();
+let world = loaded.world;
+saveBlocked = loaded.blocked;
+storageWarning = loaded.warning;
+let filter = 'all';
+let toastTimer;
+let lastSaveAt = Date.now();
+let renderedEventsKey = '';
+let renderedRegionsKey = '';
+let announcedEventKey = '';
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
+
+function latestEventKey() {
+  const event = world.chronicle.at(-1);
+  return event ? `${event.day}:${event.minute}:${event.category}:${event.title}` : '';
+}
+
+function setSaveStatus(text, warning = false) {
+  const label = $('saveLabel');
+  const detail = $('saveWarning');
+  label.textContent = warning ? 'Save needs attention' : text;
+  detail.textContent = warning ? text : '';
+  detail.hidden = !warning;
+}
+
+function saveWorld({ sync = false } = {}) {
+  const now = Date.now();
+  if (sync && !world.paused) advanceElapsed(world, now - world.lastRealMs);
+  world.lastRealMs = now;
+  if (saveBlocked || !storage) {
+    if (!storageWarning) storageWarning = 'Automatic saving is paused until the damaged save is backed up or you confirm a restart.';
+    setSaveStatus(storageWarning, true);
+    return false;
+  }
+  try {
+    storage.setItem(SAVE_KEY, JSON.stringify(world));
+    lastSaveAt = now;
+    setSaveStatus(`Saved in this browser · ${new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+    return true;
+  } catch (error) {
+    storageWarning = error?.name === 'QuotaExceededError'
+      ? 'This browser is out of storage space. Free some space before relying on a save.'
+      : 'This browser could not save the world. It will remain in memory until you leave.';
+    setSaveStatus(storageWarning, true);
+    return false;
+  }
+}
+
+function showToast(message) {
+  const toast = $('toast');
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function setMeter(name, value) {
+  const rounded = Math.round(Math.max(0, Math.min(100, value)));
+  const meter = $(`${name}Meter`);
+  meter.value = rounded;
+  meter.setAttribute('aria-valuenow', String(rounded));
+  $(`${name}Value`).textContent = String(rounded);
+}
+
+function shelterName(integrity) {
+  if (integrity < 28) return 'Leaking coastal house';
+  if (integrity < 55) return 'Worn coastal house';
+  if (integrity < 80) return 'Patched coastal house';
+  return 'Weatherproof homestead';
+}
+
+function eventMatches(event) {
+  if (filter === 'all') return true;
+  if (filter === 'discovery') return event.category === 'discovery' || event.category === 'exploration';
+  return event.category === filter;
+}
+
+function renderEvents() {
+  const key = `${filter}|${world.chronicle.map((event) => `${event.day}:${event.minute}:${event.category}:${event.title}`).join('|')}`;
+  if (key === renderedEventsKey) return;
+  renderedEventsKey = key;
+  const entries = world.chronicle.slice().reverse().filter(eventMatches);
+  const list = $('eventList');
+  const scrollTop = list.scrollTop;
+  list.innerHTML = entries.map((event) => {
+    const category = categoryNames[event.category] || 'Survival';
+    return `<article class="event${event.importance === 'major' ? ' major' : ''}">
+      <time>${escapeHtml(formatSimDate(event.day))} · ${escapeHtml(event.time)}</time>
+      <div class="event-copy"><h3>${escapeHtml(event.title)}</h3><p>${escapeHtml(event.detail)}</p><span class="event-category">${escapeHtml(category)}</span></div>
+    </article>`;
+  }).join('');
+  list.scrollTop = scrollTop;
+  $('emptyEvents').hidden = entries.length !== 0;
+}
+
+function renderRegions() {
+  const key = `${world.locationId}|${world.locations.map((location) => `${location.id}:${location.exploration}:${JSON.stringify(location.resources)}`).join('|')}`;
+  if (key === renderedRegionsKey) return;
+  renderedRegionsKey = key;
+  $('regionList').innerHTML = world.locations.map((location) => {
+    const known = location.exploration === 'known';
+    const here = location.id === world.locationId;
+    const availability = known
+      ? `Available nearby: ${location.resources.food} food, ${location.resources.water} water, ${location.resources.wood} wood.`
+      : 'Not yet explored';
+    return `<article class="region${known ? ' known' : ' unknown'}${here ? ' current' : ''}">
+      <span class="region-mark" aria-hidden="true"></span>
+      <div class="region-copy"><strong>${escapeHtml(location.name)}</strong><span>${known ? `${here ? 'Here now · ' : ''}Known · ${escapeHtml(location.region)}` : 'Unexplored'}</span>
+      ${known ? `<small>${escapeHtml(location.terrain)}. ${escapeHtml(location.discovery)} ${escapeHtml(availability)}</small>` : '<small>The path beyond the known coast remains unrecorded.</small>'}</div>
+    </article>`;
+  }).join('');
+}
+
+function render({ announce = false } = {}) {
+  const weather = weatherText[world.weather] || weatherText.mist;
+  const location = world.locations.find((item) => item.id === world.locationId) || world.locations[0];
+  const activeType = world.activeAction?.type;
+  const activity = getActionLabel(world);
+  const newest = latestEventKey();
+
+  $('dateLabel').textContent = `${formatSimDate(world.day)} · Day ${world.day}`;
+  $('clock').textContent = `${String(Math.floor(world.minute / 60)).padStart(2, '0')}:${String(Math.floor(world.minute % 60)).padStart(2, '0')}`;
+  $('dayPart').textContent = world.minute < 300 || world.minute >= 1140 ? 'Night' : world.minute < 660 ? 'Morning' : world.minute < 960 ? 'Afternoon' : 'Evening';
+  $('weatherBlock').dataset.weather = world.weather;
+  document.querySelector('.world').dataset.weather = world.weather;
+  $('weatherName').textContent = weather[0];
+  $('weatherNote').textContent = weather[1];
+  $('weatherIcon').textContent = weather[2];
+  $('worldHeading').textContent = location.id === 'coastal-homestead' ? 'Kerala coast' : location.name;
+  $('statusText').textContent = !world.survivor.alive
+    ? 'His life has ended.'
+    : world.paused ? 'Time has stopped.'
+      : world.survivor.needs.health < 28 ? 'His condition is critical.'
+        : activeType ? activity
+          : 'The coast is quiet.';
+  $('observation').textContent = !world.survivor.alive
+    ? 'The house is quiet. His last days remain in the chronicle.'
+    : ['explore', 'travel', 'returnHome'].includes(activeType) && world.activeAction.targetLocationId
+      ? `${activeType === 'explore' ? 'He is following an unfamiliar path toward' : activeType === 'travel' ? 'He is following the mapped route toward' : 'He is retracing the route toward'} ${world.locations.find((item) => item.id === world.activeAction.targetLocationId)?.name || 'the next location'}.`
+      : activeType ? observationText[activeType] || activity
+        : world.weather === 'rain' ? 'Rain works at the roof while he waits beneath the eaves.'
+          : world.weather === 'heat' ? 'Dry heat settles over the coast. The water stores matter more now.'
+            : 'He listens to the surf and the wind moving through the palms.';
+
+  for (const name of ['health', 'hunger', 'thirst', 'energy']) setMeter(name, world.survivor.needs[name]);
+  $('activity').textContent = activity;
+  $('goal').textContent = getLongTermGoal(world);
+  $('morale').textContent = `${Math.round(world.survivor.needs.morale)} / 100`;
+  $('exposure').textContent = `${Math.round(world.survivor.needs.exposure)} / 100`;
+  $('injury').textContent = world.survivor.needs.injury < 3 ? 'None' : `Recovering · ${Math.round(world.survivor.needs.injury)} / 100`;
+  $('shelter').textContent = `${shelterName(world.shelter.integrity)} · ${Math.round(world.shelter.integrity)}%`;
+  $('fire').textContent = world.shelter.fireMinutes > 0 ? `Burning · ${Math.ceil(world.shelter.fireMinutes)} min left` : 'Cold';
+  const inventory = world.survivor.inventory;
+  $('food').textContent = `${inventory.food} portion${inventory.food === 1 ? '' : 's'}`;
+  $('water').textContent = `${inventory.water} container${inventory.water === 1 ? '' : 's'}`;
+  $('wood').textContent = `${inventory.wood} bundle${inventory.wood === 1 ? '' : 's'}`;
+  $('materials').textContent = `${inventory.materials} salvage · ${inventory.scrap} scrap`;
+  $('tools').textContent = world.survivor.tools ? 'Crude hand tool' : 'Not made';
+  $('foragingSkill').textContent = `${world.survivor.skills.foraging} task${world.survivor.skills.foraging === 1 ? '' : 's'}`;
+  $('repairSkill').textContent = `${world.survivor.skills.repair} task${world.survivor.skills.repair === 1 ? '' : 's'}`;
+  $('navigationSkill').textContent = `${world.survivor.skills.navigation} route${world.survivor.skills.navigation === 1 ? '' : 's'}`;
+  $('craftingSkill').textContent = `${world.survivor.skills.crafting} tool${world.survivor.skills.crafting === 1 ? '' : 's'}`;
+  $('prioritySelect').value = world.priority;
+
+  $('daysSurvived').textContent = String(world.day);
+  $('placesKnown').textContent = String(world.locations.filter((item) => item.exploration === 'known').length);
+  const discovery = world.survivor.memory.lastDiscovery && world.locations.find((item) => item.id === world.survivor.memory.lastDiscovery);
+  $('lastDiscovery').textContent = discovery?.name || 'None yet';
+  $('simulationState').textContent = !world.survivor.alive ? 'Life ended' : world.paused ? 'World paused' : 'World simulating';
+  $('stateLed').classList.toggle('paused', world.paused);
+  $('stateLed').classList.toggle('dead', !world.survivor.alive);
+  $('pauseButton').textContent = world.paused ? 'Resume time' : 'Pause time';
+  $('pauseButton').disabled = !world.survivor.alive;
+  renderEvents();
+  renderRegions();
+
+  if (announce && newest && newest !== announcedEventKey) {
+    const event = world.chronicle.at(-1);
+    $('announcer').textContent = `${formatSimDate(event.day)}, ${event.time}. ${event.title}. ${event.detail}`;
+  }
+  announcedEventKey = newest;
+}
+
+function selectTab(button) {
+  for (const tab of document.querySelectorAll('[data-tab]')) {
+    const selected = tab === button;
+    tab.classList.toggle('active', selected);
+    tab.setAttribute('aria-selected', String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  }
+  for (const panel of document.querySelectorAll('[data-panel]')) {
+    const selected = panel.dataset.panel === button.dataset.tab;
+    panel.hidden = !selected;
+  }
+}
+
+document.querySelectorAll('[data-tab]').forEach((button) => {
+  button.addEventListener('click', () => selectTab(button));
+  button.addEventListener('keydown', (event) => {
+    const tabs = [...document.querySelectorAll('[data-tab]')];
+    const index = tabs.indexOf(button);
+    const next = event.key === 'ArrowRight' ? tabs[(index + 1) % tabs.length]
+      : event.key === 'ArrowLeft' ? tabs[(index - 1 + tabs.length) % tabs.length]
+        : event.key === 'Home' ? tabs[0]
+          : event.key === 'End' ? tabs.at(-1) : null;
+    if (next) {
+      event.preventDefault();
+      next.focus();
+      selectTab(next);
+    }
+  });
+});
+
+document.querySelectorAll('[data-filter]').forEach((button) => {
+  button.addEventListener('click', () => {
+    filter = button.dataset.filter;
+    for (const option of document.querySelectorAll('[data-filter]')) {
+      const active = option === button;
+      option.classList.toggle('active', active);
+      option.setAttribute('aria-pressed', String(active));
+    }
+    renderEvents();
+  });
+});
+
+$('prioritySelect').addEventListener('change', (event) => {
+  world.priority = event.target.value;
+  saveWorld();
+  showToast('Priority updated. He still chooses his own actions.');
+  render();
+});
+
+$('pauseButton').addEventListener('click', () => {
+  pauseWorld(world, !world.paused, Date.now());
+  saveWorld();
+  render();
+});
+
+$('saveButton').addEventListener('click', () => {
+  const saved = saveWorld({ sync: true });
+  render();
+  showToast(saved ? 'World saved in this browser.' : 'The world could not be saved. See the notice below.');
+});
+
+$('resetButton').addEventListener('click', () => {
+  if (!window.confirm('Restart Year Zero? This replaces the saved world in this browser.')) return;
+  world = createWorld({ now: Date.now() });
+  saveBlocked = false;
+  storageWarning = '';
+  if (storage) {
+    for (const key of [SAVE_KEY, ...LEGACY_SAVE_KEYS]) {
+      try { storage.removeItem(key); } catch {}
+    }
+  }
+  setSaveStatus('A new world is ready.');
+  saveWorld();
+  render();
+  showToast('A new beginning on the Kerala coast.');
+});
+
+function update() {
+  const now = Date.now();
+  const previousEvent = latestEventKey();
+  if (!world.paused && world.survivor.alive) advanceElapsed(world, now - world.lastRealMs);
+  world.lastRealMs = now;
+  const currentEvent = latestEventKey();
+  render({ announce: currentEvent !== previousEvent });
+  if (now - lastSaveAt >= 5000) saveWorld();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) saveWorld({ sync: true });
+});
+window.addEventListener('pagehide', () => saveWorld({ sync: true }));
+
+if (storageWarning) setSaveStatus(storageWarning, true);
+render();
+if (migrationToast) showToast(migrationToast);
+else if (loaded.warning) showToast(loaded.warning);
+setInterval(update, 1000);
