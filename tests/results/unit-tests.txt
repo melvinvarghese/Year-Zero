@@ -1,0 +1,29 @@
+✔ work consumes duration, walks to actual well, then transfers finite water (4.365846ms)
+✔ a freshwater label does not generate water in a depleted source (1.152904ms)
+✔ eating consumes a portion and repairs consume timber only at completion (0.23977ms)
+✔ exploration travels continuously and unlocks a real connected location (0.290327ms)
+✔ save reload preserves unfinished movement, memories, reserves, structures and discoveries (2.516696ms)
+✔ offline catch-up equals the same elapsed active simulation, without duplicate events (4.660709ms)
+✔ paused reload does not catch up; corrupt and future saves warn (0.491609ms)
+✔ storm discourages exploration and rain replenishes finite water and collector storage (0.490778ms)
+✔ construction spends its recipe and cannot run without prerequisites (0.416917ms)
+✔ a planted crop grows over days and harvesting converts it into carried food (0.404348ms)
+✔ urgent needs interrupt long work, preserve materials, and choose survival (0.295134ms)
+✔ 60-day seeded runs stay bounded, discover sites, build and keep doing useful work (915.864235ms)
+✔ workshop and archived routes improve real action durations (0.570308ms)
+✔ fractional late-night time survives reload and midnight events have valid dates (0.67175ms)
+✔ one simulated day equals 15 real minutes (5.630419ms)
+✔ autonomous utility engine prioritizes drinking when thirst is critical (0.484328ms)
+✔ priority bias gently weights choices without overriding critical survival (0.238549ms)
+✔ offline catch-up caps at 7 simulated days and preserves state (10.65122ms)
+✔ pauseWorld freezes elapsed progression while paused (0.203506ms)
+✔ formatSimDate formats calendar transitions accurately (0.183406ms)
+✔ exploration discovers connected Kerala coast locations (1.27665ms)
+ℹ tests 21
+ℹ suites 0
+ℹ pass 21
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1057.728625

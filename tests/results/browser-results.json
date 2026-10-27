@@ -1,0 +1,18 @@
+{
+  "browser": "153.0.8010.0",
+  "base": "http://127.0.0.1:8012/Year-Zero/",
+  "checks": [
+    "Autonomous movement, timed work and completion in the actual canvas",
+    "Pause freezes clock, survivor and animation state",
+    "Reload preserves unfinished work, position, inventory and chronicle",
+    "Explicit hour step advances exactly 60 simulated minutes while paused",
+    "Observer camera and all information tabs work",
+    "390px mobile layout has no horizontal overflow; canvas, controls and needs visible",
+    "Production reload catches up through the engine, capped at seven world days",
+    "Cached /Year-Zero/ page reloads offline with modules and assets",
+    "Corrupt save is backed up and protected from automatic overwrite",
+    "No fatal JavaScript errors or failed HTTP responses at the GitHub Pages subdirectory"
+  ],
+  "errors": [],
+  "failed": []
+}
