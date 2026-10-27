@@ -1064,3 +1064,22 @@ meter::-webkit-meter-optimum-value {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The living world is the primary view; original artwork remains as a backdrop. */
+.scene-content { padding: 24px; gap: 20px; justify-content: flex-start; }
+.landscape { opacity: .16; }
+.living-world { margin: 0; border: 1px solid #75836a55; background: #233f30; border-radius: 5px; overflow: hidden; box-shadow: 0 20px 60px #0004; }
+.scene-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; color: #ced2b5; background: #15251f; font-size: 12px; }
+.scene-toolbar i { display: inline-block; height: 6px; width: 6px; background: #d9bd76; border-radius: 50%; margin-right: 7px; }
+.scene-toolbar button { border: 1px solid #7e8b6755; background: #293a2e; color: #e2d7b4; padding: 7px 10px; border-radius: 3px; cursor: pointer; font-size: 11px; }
+#livingCanvas { width: 100%; aspect-ratio: 1000 / 760; display: block; }
+#sceneReason { color: #c6cbb3; font-size: 12px; line-height: 1.6; padding: 12px 14px; min-height: 62px; background: #17271f; border-top: 1px solid #7e8b6733; }
+.place { margin: 0; }
+.place h1 { font-size: clamp(28px, 3vw, 42px); }
+.scene-bottom { gap: 18px; }
+.observer-note { margin-top: 0; }
+[hidden] { display: none !important; }
+@media (min-width: 1500px) { .app { grid-template-columns: minmax(0,1fr) 420px; } .living-world { max-width: 1200px; } }
+@media (max-width: 600px) { .scene-content { padding: 16px 12px; gap: 14px; } .scene-toolbar { padding: 8px; font-size: 10px; } .masthead { gap: 12px; } .needs { flex-wrap: wrap; } #livingCanvas { aspect-ratio: 1 / 1; } .scene-bottom { flex-direction: column; align-items: stretch; } .side-panel { width: 100%; min-width: 0; } }
+
+@media (max-width: 600px) { .scene-observation { flex: none; max-width: none; } .needs { width: 100%; } }

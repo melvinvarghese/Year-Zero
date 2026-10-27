@@ -15,7 +15,7 @@
   <main class="app">
     <section class="world" id="worldSection" data-weather="mist" aria-labelledby="worldHeading">
       <div class="landscape" id="landscapeBg" aria-hidden="true"></div>
-      <canvas class="scene-canvas" id="sceneCanvas" aria-hidden="true"></canvas>
+
       <div class="shade" aria-hidden="true"></div>
 
       <div class="scene-content">
@@ -56,6 +56,11 @@
           </p>
         </div>
 
+        <figure class="living-world">
+          <div class="scene-toolbar"><span><i></i> A life on the Malabar coast</span><button id="cameraButton" type="button" aria-pressed="true">View whole coast</button></div>
+          <canvas id="livingCanvas" role="img" aria-label="The survivor in the coastal world"></canvas>
+          <figcaption id="sceneReason">The survivor is considering his surroundings.</figcaption>
+        </figure>
         <div class="scene-bottom">
           <div class="scene-observation">
             <span class="observation-rule" aria-hidden="true"></span>
@@ -95,7 +100,7 @@
           </section>
         </div>
 
-        <p class="observer-note">Zero-AI Autonomous Engine <span aria-hidden="true">•</span> Utility-driven survival on GitHub Pages</p>
+        <p class="observer-note">An autonomous life <span aria-hidden="true">•</span> 15 real minutes = one day at 1×</p>
       </div>
     </section>
 
@@ -130,7 +135,7 @@
         <h2>Condition &amp; utility mind.</h2>
         <p class="intro">His needs, supplies, and utility evaluator determine every choice without AI or external APIs.</p>
 
-        <label class="priority" for="prioritySelect">Observer priority bias
+        <label class="priority" hidden for="prioritySelect">Observer priority bias
           <select id="prioritySelect">
             <option value="balanced">Balanced survival</option>
             <option value="food">Find food &amp; tend garden</option>
@@ -140,7 +145,7 @@
             <option value="rest">Rest &amp; recover</option>
           </select>
         </label>
-        <p class="hint">Gently weights utility scores (+22 to +24). Critical thirst or hunger always takes precedence.</p>
+
 
         <h3>Autonomous utility evaluator</h3>
         <div class="utility-list" id="utilityList" aria-label="Ranked candidate actions"></div>
@@ -157,6 +162,8 @@
           <div><dt>Wellside garden</dt><dd id="garden">Unplanted</dd></div>
         </dl>
 
+        <h3>The growing homestead</h3>
+        <dl class="detail-list"><div><dt>Stored reserves</dt><dd id="homeReserves"></dd></div><div><dt>Built structures</dt><dd id="structures"></dd></div><div><dt>Planted crops</dt><dd id="cropGrowth"></dd></div></dl>
         <h3>Carried supplies</h3>
         <dl class="detail-list inventory-list">
           <div><dt>Food</dt><dd id="food">3 portions</dd></div>
@@ -212,6 +219,7 @@
             <button type="button" id="confirmResetNo" class="confirm-btn">Cancel</button>
           </div>
         </div>
+<p class="hint">While closed, the browser cannot run the world. On return, elapsed time is simulated at 1×, capped at seven world days. Pause freezes catch-up.</p>
         <p class="save-label" id="saveLabel">Saved in this browser</p>
         <p class="save-warning" id="saveWarning" role="status" hidden></p>
       </footer>

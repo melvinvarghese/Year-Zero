@@ -1,20 +1,29 @@
+import { station, positionAt } from './world-geometry.mjs';
 export const DAY_MS = 15 * 60 * 1000;
 export const MAX_CATCHUP_DAYS = 7;
 export const MAX_CATCHUP_MS = MAX_CATCHUP_DAYS * DAY_MS;
-export const SAVE_KEY = 'year-zero-world-v5';
-export const LEGACY_SAVE_KEYS = ['year-zero-world-v4', 'year-zero-save-v2'];
-export const SCHEMA_VERSION = 1;
+export const SAVE_KEY = 'year-zero-world-v6';
+export const LEGACY_SAVE_KEYS = ['year-zero-world-v5', 'year-zero-world-v4', 'year-zero-save-v2'];
+export const SCHEMA_VERSION = 2;
 export const MAX_CHRONICLE = 300;
 
 const MAX_SIM_MINUTES = MAX_CATCHUP_DAYS * 1440;
 export const RESOURCE_CAPS = { food: 12, water: 12, wood: 30, scrap: 12, materials: 12, seeds: 8 };
 export const VALID_PRIORITIES = new Set(['balanced', 'food', 'water', 'shelter', 'explore', 'rest']);
-export const WEATHER = new Set(['mist', 'breeze', 'rain', 'heat']);
+export const WEATHER = new Set(['mist', 'breeze', 'rain', 'heat', 'storm']);
 const MONTH_LENGTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const OUTDOOR_ACTIONS = new Set(['explore', 'travel', 'returnHome', 'gatherFood', 'gatherWood', 'collectWater', 'tendGarden']);
+const OUTDOOR_ACTIONS = new Set(['explore', 'travel', 'returnHome', 'gatherFood', 'gatherWood', 'collectWater', 'tendGarden', 'scavenge', 'harvest', 'buildCollector', 'waterGarden']);
 
 export const ACTION_LABELS = {
+  scavenge: 'Searching the abandoned building',
+  buildCollector: 'Building a rainwater collector',
+  buildWorkshop: 'Building a sheltered workbench',
+  archive: 'Preserving maps and knowledge',
+  harvest: 'Harvesting the garden',
+  waterGarden: 'Watering the garden',
+  storeSupplies: 'Storing reserves at home',
+  resupply: 'Packing supplies from storage',
   drink: 'Drinking stored water',
   collectWater: 'Drawing water at this site',
   eat: 'Eating a stored meal',
@@ -225,6 +234,10 @@ export function createWorld({ now = Date.now(), seed } = {}) {
       fireMinutes: 0,
       gardenStage: 0
     },
+    position: station('coastal-homestead', 'rest'),
+    storage: { food: 0, water: 0, wood: 0, scrap: 0, materials: 0, seeds: 0 },
+    structures: { collector: false, workshop: false, archive: false },
+    garden: { growth: 0, moisture: 60 },
     activeAction: null,
     actionCount: 0,
     chronicle: [
@@ -234,6 +247,7 @@ export function createWorld({ now = Date.now(), seed } = {}) {
         time: '06:15',
         category: 'survival',
         importance: 'major',
+        locationId: 'coastal-homestead',
         title: 'A solitary start',
         detail: 'He wakes in the abandoned coastal house. Monsoon rain has left the well full, but the palm thatch roof needs work.'
       }
@@ -241,7 +255,7 @@ export function createWorld({ now = Date.now(), seed } = {}) {
   };
 }
 
-function getLocation(world, id = world.locationId) {
+export function getLocation(world, id = world.locationId) {
   return world.locations.find((loc) => loc.id === id) || world.locations[0];
 }
 
@@ -252,6 +266,7 @@ function addEvent(world, category, title, detail, importance = 'normal') {
     time: formatClock(world.minute),
     category,
     importance,
+    locationId: world.locationId,
     title,
     detail
   });
@@ -357,6 +372,15 @@ function priorityBonus(priority, actionType) {
   }
 }
 
+export const INVENTORY_CAPACITY = 32;
+export function inventoryLoad(world) {
+  return Object.entries(world.survivor.inventory).reduce((sum, [k,v]) => sum + v * (['food','water'].includes(k) ? 1 : 0.5), 0);
+}
+function roomFor(world, key) {
+  const weight = ['food','water'].includes(key) ? 1 : 0.5;
+  return Math.max(0, Math.min(RESOURCE_CAPS[key] - world.survivor.inventory[key], Math.floor((INVENTORY_CAPACITY - inventoryLoad(world)) / weight)));
+}
+
 export function evaluateActions(world) {
   const s = world.survivor;
   const n = s.needs;
@@ -364,7 +388,8 @@ export function evaluateActions(world) {
   const loc = getLocation(world);
   const atHome = world.locationId === 'coastal-homestead';
   const isNight = world.minute < 330 || world.minute >= 1140;
-  const isRain = world.weather === 'rain';
+  const isRain = ['rain', 'storm'].includes(world.weather);
+  const storm = world.weather === 'storm';
   const isHeat = world.weather === 'heat';
   const candidates = [];
 
@@ -372,7 +397,8 @@ export function evaluateActions(world) {
     const failureCount = s.memory.actionFailures?.[type] || 0;
     const penalty = failureCount * 12;
     const pBonus = priorityBonus(world.priority, type);
-    const total = Math.round((score + pBonus - penalty) * 10) / 10;
+    const dangerPenalty = storm && OUTDOOR_ACTIONS.has(type) ? 90 : 0;
+    const total = Math.round((score + pBonus - penalty - dangerPenalty) * 10) / 10;
     candidates.push({
       type,
       score: total,
@@ -398,19 +424,19 @@ export function evaluateActions(world) {
     addCandidate('treatInjury', 58 + n.injury * 0.8, 'Clean salvage cloth can bind and protect his injury.');
   }
 
-  if ((loc.resources.water > 0 || loc.freshwater) && inv.water < RESOURCE_CAPS.water) {
+  if (loc.resources.water > 0 && inv.water < 6 && roomFor(world, 'water') > 0) {
     const needWater = Math.max(0, 6 - inv.water) * 11 + n.thirst * 0.45;
     const weatherMod = isRain ? 10 : isHeat ? 14 : 0;
     addCandidate('collectWater', 26 + needWater + weatherMod, `Freshwater can be drawn at ${loc.name}.`);
   }
 
-  if (loc.resources.food > 0 && inv.food < RESOURCE_CAPS.food) {
+  if (loc.resources.food > 0 && inv.food < 6 && roomFor(world, 'food') > 0) {
     const needFood = Math.max(0, 6 - inv.food) * 10 + n.hunger * 0.4;
     const nightPenalty = isNight ? -18 : 0;
     addCandidate('gatherFood', 24 + needFood + nightPenalty, `Edible greens and fruit remain around ${loc.name}.`);
   }
 
-  if (loc.resources.wood > 0 && inv.wood < RESOURCE_CAPS.wood) {
+  if (loc.resources.wood > 0 && inv.wood < 9 && roomFor(world, 'wood') > 0) {
     const lowWood = Math.max(0, 8 - inv.wood) * 6;
     const roofNeed = world.shelter.integrity < 75 ? 16 : 4;
     const nightPenalty = isNight ? -16 : 0;
@@ -435,11 +461,35 @@ export function evaluateActions(world) {
     addCandidate('tendGarden', 31 + inv.seeds * 4, 'Seeds from the coast can be planted beside the stone well.');
   }
 
+  if ((loc.resources.materials > 0 || loc.resources.scrap > 0) && inv.materials + inv.scrap < 8 && roomFor(world, 'materials') > 0) {
+    addCandidate('scavenge', 37 + (!world.structures.collector ? 12 : 0), 'Usable fittings and cloth remain in the abandoned building.');
+  }
+  if (atHome && world.shelter.gardenStage > 0 && world.garden.moisture < 35 && inv.water >= 2 && !isNight) {
+    addCandidate('waterGarden', 57, 'The planted bed is drying out; one container will restore soil moisture.');
+  }
+  if (atHome && world.garden.growth >= 100 && roomFor(world, 'food') > 0) {
+    addCandidate('harvest', 66 + n.hunger * .3, 'The planted tubers have matured; harvesting will supply actual food.');
+  }
+  if (atHome && !world.structures.collector && inv.wood >= 4 && inv.scrap >= 2 && s.tools) {
+    addCandidate('buildCollector', 58, 'Four bundles of timber and two scrap sheets can capture future rain.');
+  }
+  if (atHome && !world.structures.workshop && inv.wood >= 5 && inv.materials >= 3 && s.tools && world.shelter.integrity >= 70) {
+    addCandidate('buildWorkshop', 54, 'A dry roof, five timber bundles and three fittings allow a workbench.');
+  }
+  if (atHome && world.structures.workshop && !world.structures.archive && inv.wood >= 2 && inv.materials >= 2 && s.skills.navigation >= 3) {
+    addCandidate('archive', 52, 'His explored routes can be recorded and kept in a weatherproof knowledge chest.');
+  }
+  if (atHome && ['food','water'].some(k => inv[k] >= 6 && world.storage[k] < 8)) {
+    addCandidate('storeSupplies', 61, 'Keep a reserve at the shelter and free carrying capacity for future journeys.');
+  }
+  if (atHome && ['food','water'].some(k => inv[k] < 2 && world.storage[k] > 0)) {
+    addCandidate('resupply', 100, 'Home reserves can replenish his travelling provisions.');
+  }
   const fatigue = (100 - n.energy) * 0.75 + n.exposure * 0.35 + n.injury * 0.5 + (isNight ? 24 : 0);
   addCandidate('rest', 14 + fatigue, isNight ? 'Night has fallen over the coast; rest restores strength.' : 'Resting in the shade recovers energy and steadies breathing.');
 
   if (!atHome) {
-    const homeUrgency = (isNight ? 34 : 10)
+    const homeUrgency = (storm ? 80 : 0) + (inventoryLoad(world) > 26 ? 60 : 0) + (isNight ? 34 : 10)
       + (n.energy < 42 ? 28 : 0)
       + (n.exposure > 35 ? 24 : 0)
       + (loc.resources.food + loc.resources.water + loc.resources.wood <= 2 ? 22 : 0);
@@ -449,7 +499,7 @@ export function evaluateActions(world) {
     }
   }
 
-  const canVenture = !isNight && n.energy >= 44 && n.health >= 45 && n.thirst < 62 && n.hunger < 62 && n.injury < 45;
+  const canVenture = !storm && !isNight && n.energy >= 44 && n.health >= 45 && n.thirst < 62 && n.hunger < 62 && n.injury < 45;
   if (canVenture) {
     const unseenTarget = nextDiscoveryTarget(world);
     if (unseenTarget && inv.water >= 2 && inv.food >= 2 && world.shelter.integrity >= 45) {
@@ -458,7 +508,8 @@ export function evaluateActions(world) {
     }
 
     const scarceResource = inv.water <= 2 ? 'water' : inv.food <= 2 ? 'food' : inv.wood <= 3 ? 'wood' : 'materials';
-    const routeTarget = findResourceRoute(world, scarceResource);
+    const needed = scarceResource === 'materials' ? inv.materials + inv.scrap < 5 : inv[scarceResource] < 3;
+    const routeTarget = needed && (loc.resources[scarceResource] || 0) <= 0 ? findResourceRoute(world, scarceResource) : null;
     if (routeTarget) {
       const scarcityBonus = (scarceResource === 'water' || scarceResource === 'food') ? 26 : 14;
       addCandidate('travel', 24 + scarcityBonus - (isRain ? 10 : 0), `Known route toward ${routeTarget.name} for ${scarceResource}.`, routeTarget.id);
@@ -470,15 +521,22 @@ export function evaluateActions(world) {
 }
 
 function actionDuration(world, type, targetLocationId) {
-  const hasTool = world.survivor.tools;
+  const hasTool = world.survivor.tools || world.structures.workshop;
   switch (type) {
+    case 'scavenge': return 90;
+    case 'buildCollector': return 150;
+    case 'buildWorkshop': return 210;
+    case 'archive': return world.structures.workshop ? 96 : 120;
+    case 'waterGarden': return 30;
+    case 'harvest': return 60;
+    case 'storeSupplies': case 'resupply': return 20;
     case 'drink': return 15;
     case 'eat': return 25;
     case 'treatInjury': return 40;
     case 'collectWater': return 45;
     case 'gatherFood': return hasTool ? 65 : 85;
     case 'gatherWood': return hasTool ? 60 : 80;
-    case 'repairShelter': return hasTool ? 75 : 95;
+    case 'repairShelter': return Math.round((hasTool ? 75 : 95) * (world.structures.workshop ? .8 : 1));
     case 'craftTool': return 70;
     case 'makeFire': return 35;
     case 'tendGarden': return 60;
@@ -488,9 +546,9 @@ function actionDuration(world, type, targetLocationId) {
     case 'returnHome': {
       const target = getLocation(world, targetLocationId);
       const base = target?.travelMinutes || 150;
-      const navBonus = Math.min(35, (world.survivor.skills.navigation || 0) * 6);
+      const navBonus = Math.min(35, (world.survivor.skills.navigation || 0) * 6) + (world.structures.archive ? 12 : 0);
       const weatherPenalty = world.weather === 'rain' ? 25 : world.weather === 'heat' ? 15 : 0;
-      return clamp(Math.round((base - navBonus + weatherPenalty) * 0.55), 55, 190);
+      return clamp(Math.round((base - navBonus + weatherPenalty + world.survivor.needs.injury * .5) * 0.55), 55, 220);
     }
     default: return 60;
   }
@@ -500,15 +558,23 @@ function startNextAction(world) {
   const evaluated = evaluateActions(world);
   world.survivor.memory.lastEvaluation = evaluated.slice(0, 6);
   const chosen = evaluated[0] || { type: 'rest', score: 10, reason: 'Waiting quietly.' };
-  const duration = actionDuration(world, chosen.type, chosen.targetLocationId);
+  const workMinutes = actionDuration(world, chosen.type, chosen.targetLocationId);
+  const from = { ...world.position };
+  const travel = ['explore', 'travel', 'returnHome'].includes(chosen.type);
+  const to = station(chosen.targetLocationId || world.locationId, travel ? 'arrival' : chosen.type);
+  const walkMinutes = travel ? workMinutes : Math.max(2, Math.hypot(to.x - from.x, to.y - from.y) / 2);
+  const duration = travel ? walkMinutes : walkMinutes + workMinutes;
   world.activeAction = {
     type: chosen.type,
+    from, to, walkMinutes,
+    originLocationId: world.locationId,
     targetLocationId: chosen.targetLocationId || null,
     remainingMinutes: duration,
     totalMinutes: duration,
     reason: chosen.reason,
     score: chosen.score
   };
+  addEvent(world, 'survival', `Began: ${ACTION_LABELS[chosen.type]}`, chosen.reason);
 }
 
 function checkMilestones(world) {
@@ -561,6 +627,50 @@ function completeAction(world) {
   };
 
   switch (type) {
+    case 'scavenge': {
+      let gained = 0;
+      for (const key of ['scrap','materials']) {
+        const take = Math.min(2, loc.resources[key], roomFor(world, key));
+        loc.resources[key] -= take; inv[key] += take; gained += take;
+      }
+      if (!gained) recordFailure(type); else clearFailure(type);
+      addEvent(world, 'discovery', gained ? 'Salvaged useful supplies' : 'Building searched out', `He recovered ${gained} usable fittings and cloth at ${loc.name}.`);
+      break;
+    }
+    case 'buildCollector': case 'buildWorkshop': case 'archive': {
+      const recipes = { buildCollector: ['collector',4,2,'scrap'], buildWorkshop: ['workshop',5,3,'materials'], archive: ['archive',2,2,'materials'] };
+      const [key, wood, count, material] = recipes[type];
+      if (!world.structures[key] && inv.wood >= wood && inv[material] >= count) {
+        inv.wood -= wood; inv[material] -= count; world.structures[key] = true;
+        s.skills.crafting += 1;
+        addEvent(world, 'construction', `Built: ${key}`, `He uses ${wood} timber and ${count} ${material}. ${key === 'collector' ? 'Future rain can now fill the home water reserve.' : key === 'workshop' ? 'The sheltered bench speeds future repair and craft work.' : 'Coastal route knowledge is now preserved in a dry chest.'}`, 'major');
+        world.milestones.push(key);
+      } else { recordFailure(type); addEvent(world, 'construction', 'Work postponed', 'The required materials are no longer available. He will reconsider.'); }
+      break;
+    }
+    case 'waterGarden': {
+      if (inv.water >= 1) {inv.water -= 1; world.garden.moisture = Math.min(100,world.garden.moisture+55); addEvent(world,'survival','Watered the garden','He pours one stored container over the drying roots.');}
+      break;
+    }
+    case 'harvest': {
+      if (world.garden.growth >= 100) {
+        const gain = Math.min(6, roomFor(world, 'food'));
+        inv.food += gain; world.garden.growth = 0; world.garden.moisture = 40;
+        addEvent(world, 'survival', 'Harvested the wellside garden', `Mature tubers yield ${gain} portions. The perennial bed begins its next growth cycle.`);
+      }
+      break;
+    }
+    case 'storeSupplies': case 'resupply': {
+      let moved = 0;
+      for (const key of ['food', 'water']) {
+        const amount = type === 'storeSupplies' ? Math.min(Math.max(0, inv[key]-3), 12-world.storage[key]) : Math.min(world.storage[key], Math.max(0, 5-inv[key]), roomFor(world,key));
+        inv[key] += type === 'storeSupplies' ? -amount : amount;
+        world.storage[key] += type === 'storeSupplies' ? amount : -amount;
+        moved += amount;
+      }
+      addEvent(world, 'survival', type === 'storeSupplies' ? 'Stored home reserves' : 'Packed home provisions', `${moved} portions and water containers transferred at the homestead.`);
+      break;
+    }
     case 'drink': {
       if (inv.water > 0) {
         inv.water -= 1;
@@ -589,14 +699,14 @@ function completeAction(world) {
         inv.materials -= 1;
         n.injury = clamp(n.injury - 28, 0, 100);
         n.health = clamp(n.health + 6, 0, 100);
-        addEvent(world, 'survival', 'Dressed injury', 'He cleans and binds the wound using salvaged cloth and boiled water.');
+        addEvent(world, 'survival', 'Dressed injury', 'He cleans and binds the wound using clean salvaged cloth.');
       }
       break;
     }
     case 'collectWater': {
-      const available = loc.resources.water + (loc.freshwater ? 2 : 0);
+      const available = loc.resources.water;
       if (available > 0 && inv.water < RESOURCE_CAPS.water) {
-        const gain = clamp(loc.freshwater ? 3 : 2, 1, RESOURCE_CAPS.water - inv.water);
+        const gain = Math.min(loc.freshwater ? 3 : 2, available, roomFor(world, 'water'));
         inv.water += gain;
         loc.resources.water = Math.max(0, loc.resources.water - Math.min(loc.resources.water, gain));
         n.thirst = clamp(n.thirst - 12, 0, 100);
@@ -611,16 +721,16 @@ function completeAction(world) {
     case 'gatherFood': {
       const skillBonus = Math.min(0.25, s.skills.foraging * 0.03);
       if (loc.resources.food > 0 && random(world) < 0.85 + skillBonus) {
-        const gain = clamp(s.tools ? 3 : 2, 1, Math.min(loc.resources.food, RESOURCE_CAPS.food - inv.food));
+        const gain = clamp(s.tools ? 3 : 2, 1, Math.min(loc.resources.food, roomFor(world, 'food')));
         inv.food += gain;
         loc.resources.food -= gain;
-        if (loc.resources.seeds > 0 && inv.seeds < RESOURCE_CAPS.seeds && random(world) < 0.4) {
+        if (loc.resources.seeds > 0 && roomFor(world, 'seeds') > 0 && random(world) < 0.4) {
           inv.seeds += 1;
           loc.resources.seeds -= 1;
         }
         s.skills.foraging += 1;
         clearFailure('gatherFood');
-        addEvent(world, 'survival', 'Foraged coastal food', `He gathers ${gain} portion${gain === 1 ? '' : 's'} of jackfruit, taro root, and greens at ${loc.name}.`);
+        addEvent(world, 'survival', 'Foraged coastal food', `He gathers ${gain} portion${gain === 1 ? '' : 's'} of edible provisions at ${loc.name}.`);
       } else {
         recordFailure('gatherFood');
         s.memory.failedSearches += 1;
@@ -630,14 +740,14 @@ function completeAction(world) {
     }
     case 'gatherWood': {
       if (loc.resources.wood > 0) {
-        const gain = clamp(s.tools ? 4 : 2, 1, Math.min(loc.resources.wood, RESOURCE_CAPS.wood - inv.wood));
+        const gain = clamp(s.tools ? 4 : 2, 1, Math.min(loc.resources.wood, roomFor(world, 'wood')));
         inv.wood += gain;
         loc.resources.wood -= gain;
-        if (loc.resources.scrap > 0 && inv.scrap < RESOURCE_CAPS.scrap && random(world) < 0.45) {
+        if (loc.resources.scrap > 0 && roomFor(world, 'scrap') > 0 && random(world) < 0.45) {
           inv.scrap += 1;
           loc.resources.scrap -= 1;
         }
-        if (loc.resources.materials > 0 && inv.materials < RESOURCE_CAPS.materials && random(world) < 0.45) {
+        if (loc.resources.materials > 0 && roomFor(world, 'materials') > 0 && random(world) < 0.45) {
           inv.materials += 1;
           loc.resources.materials -= 1;
         }
@@ -689,10 +799,7 @@ function completeAction(world) {
         world.shelter.gardenStage = clamp((world.shelter.gardenStage || 0) + 1, 0, 3);
         s.skills.foraging += 1;
         n.morale = clamp(n.morale + 4, 0, 100);
-        if (world.shelter.gardenStage >= 3) {
-          const homeLoc = getLocation(world, 'coastal-homestead');
-          homeLoc.resources.food = clamp(homeLoc.resources.food + 3, 0, RESOURCE_CAPS.food);
-        }
+        world.garden.moisture = Math.min(100, world.garden.moisture + 25);
         addEvent(world, 'construction', 'Tended the wellside garden', `He turns the damp red soil beside the well and sets tubers and seeds (Stage ${world.shelter.gardenStage}/3).`);
       }
       break;
@@ -722,7 +829,7 @@ function completeAction(world) {
         }
         s.skills.navigation += 1;
 
-        const hazardChance = (target.risk || 0.08) + (world.weather === 'rain' ? 0.08 : 0) - Math.min(0.08, s.skills.navigation * 0.01);
+        const hazardChance = (target.risk || 0.08) + (world.weather === 'rain' ? 0.08 : 0) - Math.min(0.08, s.skills.navigation * 0.01) - (world.structures.archive ? .03 : 0);
         if (random(world) < hazardChance) {
           n.injury = clamp(n.injury + 14, 0, 100);
           n.health = clamp(n.health - 5, 0, 100);
@@ -750,24 +857,29 @@ function advanceNewDay(world) {
   world.day += 1;
   const roll = random(world);
   const prevWeather = world.weather;
-  world.weather = roll < 0.28 ? 'mist' : roll < 0.58 ? 'breeze' : roll < 0.84 ? 'rain' : 'heat';
+  world.weather = roll < 0.24 ? 'mist' : roll < 0.52 ? 'breeze' : roll < 0.79 ? 'rain' : roll < .89 ? 'storm' : 'heat';
 
-  if (world.weather === 'rain') {
+  if (['rain','storm'].includes(world.weather)) {
     const wear = world.survivor.tools ? 4 : 6;
-    world.shelter.integrity = clamp(world.shelter.integrity - wear, 0, 100);
+    world.shelter.integrity = clamp(world.shelter.integrity - wear * (world.weather === 'storm' ? 2 : 1), 0, 100);
   } else if (world.weather === 'heat') {
     world.shelter.integrity = clamp(world.shelter.integrity - 2, 0, 100);
   }
 
+  if (['rain','storm'].includes(world.weather) && world.structures.collector) {
+    const gain = Math.min(4, 12 - world.storage.water);
+    world.storage.water += gain;
+    addEvent(world, 'environment', 'Rain filled the collector', `${gain} containers entered the home reserve.`);
+  }
   for (const loc of world.locations) {
     const maxR = loc.maxResources || { food: 8, water: 10, wood: 14, scrap: 3, materials: 3, seeds: 2 };
-    if (world.weather === 'rain' && (loc.freshwater || loc.id === 'old-village-road')) {
+    if (['rain','storm'].includes(world.weather) && (loc.freshwater || loc.id === 'old-village-road')) {
       loc.resources.water = clamp(loc.resources.water + 3, 0, maxR.water);
     } else if (loc.freshwater) {
       loc.resources.water = clamp(loc.resources.water + 1, 0, maxR.water);
     }
     if (random(world) < 0.65) {
-      const gardenBonus = (loc.id === 'coastal-homestead' && (world.shelter.gardenStage || 0) >= 2) ? 2 : 1;
+      const gardenBonus = 1; // Wild food regrowth; planted crops are harvested separately.
       loc.resources.food = clamp(loc.resources.food + gardenBonus, 0, maxR.food);
     }
     if (random(world) < 0.55) {
@@ -784,6 +896,7 @@ function advanceNewDay(world) {
 
   if (world.weather !== prevWeather) {
     const desc = {
+      storm: 'A dangerous squall closes the exposed paths and tests the shelter roof.',
       mist: 'Cool coastal mist settles over the coconut groves at dawn.',
       breeze: 'A steady salt breeze clears the humid air along the shore.',
       rain: 'Heavy monsoon squalls sweep in from the Arabian Sea, replenishing wells and testing the roof.',
@@ -798,13 +911,15 @@ function stepMinutes(world, minutes) {
 
   const s = world.survivor;
   const n = s.needs;
-  const activeType = world.activeAction?.type || 'rest';
+  const a = world.activeAction;
+  const walking = a && a.walkMinutes - (a.totalMinutes - a.remainingMinutes) > 1e-7;
+  const activeType = walking ? 'travel' : a?.type || 'rest';
   const outdoor = OUTDOOR_ACTIONS.has(activeType);
   const atHome = world.locationId === 'coastal-homestead';
 
   const hungerRate = 0.032 * (outdoor ? 1.2 : 0.9);
   const thirstRate = 0.042 * (world.weather === 'heat' ? 1.35 : 1.0) * (outdoor ? 1.2 : 0.9);
-  const energyDrain = activeType === 'rest' ? -0.12 : 0.028 * (outdoor ? 1.25 : 0.95);
+  const energyDrain = activeType === 'rest' ? -0.12 : 0.028 * (outdoor ? 1.25 : 0.95) * (1 + n.injury / 100);
 
   n.hunger = clamp(n.hunger + hungerRate * minutes, 0, 100);
   n.thirst = clamp(n.thirst + thirstRate * minutes, 0, 100);
@@ -815,10 +930,14 @@ function stepMinutes(world, minutes) {
   }
 
   const shelterCover = atHome ? world.shelter.integrity / 100 : 0.25;
-  const rainExposure = world.weather === 'rain' ? (outdoor ? 0.09 : (1 - shelterCover) * 0.05) : -0.04;
+  const rainExposure = ['rain','storm'].includes(world.weather) ? (outdoor ? 0.09 : (1 - shelterCover) * 0.05) : -0.04;
   const fireWarmth = (atHome && world.shelter.fireMinutes > 0) ? -0.08 : 0;
   n.exposure = clamp(n.exposure + (rainExposure + fireWarmth) * minutes, 0, 100);
 
+  if (world.shelter.gardenStage > 0) {
+    world.garden.moisture = clamp(world.garden.moisture + (['rain','storm'].includes(world.weather) ? .15 : -.008) * minutes, 0, 100);
+    if (world.garden.moisture > 10) world.garden.growth = clamp(world.garden.growth + minutes / (world.weather === 'heat' ? 65 : 45), 0, 100);
+  }
   let healthDelta = 0;
   if (n.thirst >= 88) healthDelta -= 0.055;
   if (n.hunger >= 90) healthDelta -= 0.04;
@@ -852,26 +971,30 @@ export function advanceSimMinutes(world, totalMinutes) {
     if (!world.activeAction) {
       startNextAction(world);
     }
+    const current = world.activeAction;
+    if (current && !['drink','eat','rest','travel','explore','returnHome'].includes(current.type) && ((world.survivor.needs.thirst >= 82 && world.survivor.inventory.water > 0) || (world.survivor.needs.hunger >= 85 && world.survivor.inventory.food > 0) || world.survivor.needs.energy < 12)) {
+      addEvent(world, 'survival', 'Work interrupted', `He sets aside ${ACTION_LABELS[current.type]} to address an urgent need. Unused materials remain available.`);
+      world.activeAction = null;
+      continue;
+    }
     const toMidnight = 1440 - world.minute;
     const toActionEnd = world.activeAction ? world.activeAction.remainingMinutes : remaining;
-    const step = Math.max(0.01, Math.min(remaining, toMidnight, toActionEnd, 15));
+    const toWalkEnd = current && current.walkMinutes - (current.totalMinutes-current.remainingMinutes) > 1e-7 ? current.walkMinutes - (current.totalMinutes-current.remainingMinutes) : Infinity;
+    const step = Math.min(remaining, toMidnight, toActionEnd, toWalkEnd, 15);
+    if (step <= 0) break;
 
     stepMinutes(world, step);
     world.minute += step;
     remaining -= step;
 
-    if (world.activeAction) {
-      world.activeAction.remainingMinutes -= step;
-      if (world.activeAction.remainingMinutes <= 0.001 && world.survivor.alive) {
-        completeAction(world);
-      }
-    }
-
     if (world.minute >= 1440) {
       world.minute -= 1440;
-      if (world.survivor.alive) {
-        advanceNewDay(world);
-      }
+      if (world.survivor.alive) advanceNewDay(world);
+    }
+    if (world.activeAction) {
+      world.activeAction.remainingMinutes -= step;
+      world.position = positionAt(world.activeAction);
+      if (world.activeAction.remainingMinutes <= 0.0000001 && world.survivor.alive) completeAction(world);
     }
   }
 
@@ -930,15 +1053,23 @@ export function restoreWorld(rawInput, { now = Date.now() } = {}) {
       return { world: createWorld({ now }), migrated: false, warning: 'Saved data was not a valid world record.' };
     }
 
+    if (!Number.isFinite(parsed.day) || !Number.isFinite(parsed.minute) || !parsed.survivor?.needs || !parsed.survivor?.inventory) {
+      return {world:createWorld({now}), migrated:false, warning:'Saved data is missing essential world fields. Its data has not been overwritten.'};
+    }
     const base = createWorld({ now, seed: parsed.rng || parsed.seed });
+    if (parsed.schemaVersion > SCHEMA_VERSION) return { world: base, migrated: false, warning: 'This save uses a newer version. Its data has not been overwritten.' };
     const migrated = parsed.schemaVersion !== SCHEMA_VERSION || !Array.isArray(parsed.locations);
 
     base.day = integer(parsed.day, 1, 1, 100000);
-    base.minute = clamp(finite(parsed.minute, 375), 0, 1439);
+    base.minute = clamp(finite(parsed.minute, 375), 0, 1439.999999999);
     base.paused = Boolean(parsed.paused);
     base.priority = VALID_PRIORITIES.has(parsed.priority) ? parsed.priority : 'balanced';
     base.weather = WEATHER.has(parsed.weather) ? parsed.weather : 'mist';
     base.actionCount = integer(parsed.actionCount, 0, 0);
+    for (const k of Object.keys(base.structures)) base.structures[k] = Boolean(parsed.structures?.[k]);
+    for (const k of Object.keys(base.storage)) base.storage[k] = integer(parsed.storage?.[k], 0, 0, 12);
+    base.garden.growth = clamp(finite(parsed.garden?.growth, 0), 0, 100);
+    base.garden.moisture = clamp(finite(parsed.garden?.moisture, 60), 0, 100);
 
     if (parsed.survivor && typeof parsed.survivor === 'object') {
       base.survivor.alive = parsed.survivor.alive !== false;
@@ -953,6 +1084,10 @@ export function restoreWorld(rawInput, { now = Date.now() } = {}) {
         base.survivor.skills[k] = integer(parsed.survivor.skills?.[k], 0, 0, 10000);
       }
       if (parsed.survivor.memory && typeof parsed.survivor.memory === 'object') {
+        if (Array.isArray(parsed.survivor.memory.lastEvaluation)) base.survivor.memory.lastEvaluation = parsed.survivor.memory.lastEvaluation.filter(a => a && Object.hasOwn(ACTION_LABELS,a.type)).slice(0,6).map(a => ({type:a.type,score:finite(a.score,0),baseScore:finite(a.baseScore,0),priorityBonus:finite(a.priorityBonus,0),penalty:finite(a.penalty,0),reason:String(a.reason||''),targetLocationId:typeof a.targetLocationId === 'string' ? a.targetLocationId : null}));
+        for (const [k,v] of Object.entries(parsed.survivor.memory.actionFailures || {})) {
+          if (Object.hasOwn(ACTION_LABELS,k)) base.survivor.memory.actionFailures[k] = integer(v,0,0,20);
+        }
         base.survivor.memory.failedSearches = integer(parsed.survivor.memory.failedSearches, 0, 0);
         base.survivor.memory.lastDiscovery = parsed.survivor.memory.lastDiscovery || null;
         if (Array.isArray(parsed.survivor.memory.visited)) {
@@ -990,8 +1125,18 @@ export function restoreWorld(rawInput, { now = Date.now() } = {}) {
     const validIds = new Set(base.locations.map((l) => l.id));
     base.locationId = validIds.has(parsed.locationId) ? parsed.locationId : 'coastal-homestead';
 
+    base.discoveries = Array.isArray(parsed.discoveries) ? parsed.discoveries.filter(id => validIds.has(id)) : base.locations.filter(l => l.id !== 'coastal-homestead' && l.exploration === 'known').map(l => l.id);
+    base.milestones = Array.isArray(parsed.milestones) ? parsed.milestones.filter(x => typeof x === 'string').slice(-100) : [];
+    const validPoint = point => point && Number.isFinite(point.x) && Number.isFinite(point.y) && point.x >= 0 && point.x <= 100 && point.y >= 0 && point.y <= 100;
+    base.position = validPoint(parsed.position) ? {x: parsed.position.x, y: parsed.position.y} : station(base.locationId, 'rest');
+    const a = parsed.activeAction;
+    if (a && Object.hasOwn(ACTION_LABELS,a.type) && validPoint(a.from) && validPoint(a.to) && Number.isFinite(a.totalMinutes) && a.totalMinutes > 0 && a.totalMinutes <= 500 && Number.isFinite(a.remainingMinutes) && a.remainingMinutes > 0 && a.remainingMinutes <= a.totalMinutes && Number.isFinite(a.walkMinutes) && a.walkMinutes >= 0 && a.walkMinutes <= a.totalMinutes && validIds.has(a.originLocationId) && (!a.targetLocationId || getLocation(base, a.originLocationId).neighbors.includes(a.targetLocationId))) {
+      base.activeAction = {type:a.type, from:{...a.from}, to:{...a.to}, walkMinutes:a.walkMinutes, totalMinutes:a.totalMinutes, remainingMinutes:a.remainingMinutes, originLocationId:a.originLocationId, targetLocationId:a.targetLocationId || null, reason:String(a.reason || 'Continuing unfinished work.'), score:finite(a.score,0)};
+      base.position = positionAt(base.activeAction);
+    }
     if (Array.isArray(parsed.chronicle) && parsed.chronicle.length > 0) {
       base.chronicle = parsed.chronicle.slice(-MAX_CHRONICLE).map((e) => ({
+        locationId: validIds.has(e?.locationId) ? e.locationId : 'coastal-homestead',
         day: integer(e?.day, 1, 1),
         minute: integer(e?.minute, 375, 0, 1439),
         time: typeof e?.time === 'string' ? e.time : formatClock(e?.minute || 375),

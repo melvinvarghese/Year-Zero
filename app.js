@@ -1,3 +1,5 @@
+import { createLivingScene } from './living-scene.mjs';
+import { actionPhase } from './world-geometry.mjs';
 import {
   ACTION_LABELS,
   DAY_MS,
@@ -17,6 +19,7 @@ import {
 const $ = (id) => document.getElementById(id);
 
 const weatherText = {
+  storm: ['Coastal squall', 'Exposed paths are dangerous. Shelter matters.', '⁚'],
   mist: ['Coastal mist', 'The air is still over the palms.', '≈'],
   breeze: ['Sea breeze', 'Salt wind moves through the palms.', '≈'],
   rain: ['Monsoon rain', 'Rain is working at the roof and the paths.', '⁚'],
@@ -162,7 +165,7 @@ function setSaveStatus(text, warning = false) {
 function saveWorld({ sync = false } = {}) {
   const now = Date.now();
   if (sync && !world.paused) {
-    advanceElapsed(world, (now - world.lastRealMs) * speedMultiplier);
+    advanceElapsed(world, (now - world.lastRealMs) * (document.hidden || now-world.lastRealMs > 5000 ? 1 : speedMultiplier));
   }
   world.lastRealMs = now;
   if (saveBlocked || !storage) {
@@ -366,7 +369,7 @@ function render({ announce = false } = {}) {
     ? 'The house is quiet. His last days remain in the chronicle.'
     : ['explore', 'travel', 'returnHome'].includes(activeType) && world.activeAction.targetLocationId
     ? `${activeType === 'explore' ? 'He is following an unfamiliar path toward' : activeType === 'travel' ? 'He is taking the known route toward' : 'He is returning along the known path toward'} ${world.locations.find((item) => item.id === world.activeAction.targetLocationId)?.name || 'a new area'}.`
-    : activeType ? observationText[activeType] || activity
+    : activeType ? `${actionPhase(world) === 'walking' ? 'He walks to the work site. ' : ''}${observationText[activeType] || activity}. ${world.activeAction.reason}`
     : world.weather === 'rain' ? 'Rain works at the roof while he waits beneath the eaves.'
     : world.weather === 'heat' ? 'Dry heat settles over the coast. The water stores matter more now.'
     : 'He listens to the surf and the wind moving through the palms.';
@@ -388,7 +391,10 @@ function render({ announce = false } = {}) {
     setMeter(name, world.survivor.needs[name]);
   }
 
-  $('activity').textContent = activity;
+  $('activity').textContent = `${activity} · ${actionPhase(world)}`;
+  $('homeReserves').textContent = `${world.storage.food} food · ${world.storage.water} water`;
+  $('structures').textContent = Object.entries(world.structures).filter(([,v]) => v).map(([k])=>k).join(' · ') || 'None yet';
+  $('cropGrowth').textContent = world.shelter.gardenStage ? `${Math.floor(world.garden.growth)}% grown · ${Math.floor(world.garden.moisture)}% moisture` : 'No crop planted';
   $('goal').textContent = getLongTermGoal(world);
   $('morale').textContent = `${Math.round(world.survivor.needs.morale)} / 100`;
   $('exposure').textContent = `${Math.round(world.survivor.needs.exposure)} / 100`;
@@ -484,7 +490,7 @@ document.querySelectorAll('[data-speed]').forEach((button) => {
   button.addEventListener('click', () => {
     const now = Date.now();
     if (!world.paused && world.survivor.alive) {
-      advanceElapsed(world, (now - world.lastRealMs) * speedMultiplier);
+      advanceElapsed(world, (now - world.lastRealMs) * (document.hidden || now-world.lastRealMs > 5000 ? 1 : speedMultiplier));
     }
     world.lastRealMs = now;
     speedMultiplier = Number(button.dataset.speed) || 1;
@@ -516,6 +522,7 @@ $('prioritySelect').addEventListener('change', (event) => {
 });
 
 $('pauseButton').addEventListener('click', () => {
+  saveWorld({ sync: true });
   pauseWorld(world, !world.paused, Date.now());
   saveWorld();
   render();
@@ -639,84 +646,13 @@ function toggleCoastalAudio() {
 
 $('audioToggleButton')?.addEventListener('click', toggleCoastalAudio);
 
-/* Atmospheric Canvas Overlay (Rain, Mist, Fireflies, Hearth Glow) */
-const canvas = $('sceneCanvas');
-const ctx = canvas ? canvas.getContext('2d') : null;
-const particles = Array.from({ length: 65 }, (_, i) => ({
-  x: (i * 37) % 1000,
-  y: (i * 73) % 800,
-  speed: 2 + (i % 5),
-  size: 1 + (i % 3) * 0.6,
-  drift: ((i % 7) - 3) * 0.3
-}));
-
-function resizeCanvas() {
-  if (!canvas) return;
-  const rect = canvas.parentElement.getBoundingClientRect();
-  canvas.width = Math.max(320, Math.floor(rect.width));
-  canvas.height = Math.max(400, Math.floor(rect.height));
-}
-
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-function drawAtmosphere(time) {
-  if (ctx && canvas) {
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-
-    const isNight = world.minute < 330 || world.minute >= 1140;
-    const weather = world.weather;
-
-    if (world.shelter.fireMinutes > 0 && world.locationId === 'coastal-homestead') {
-      const flicker = 0.14 + Math.sin(time * 0.006) * 0.03;
-      const grad = ctx.createRadialGradient(w * 0.52, h * 0.54, 8, w * 0.52, h * 0.54, w * 0.28);
-      grad.addColorStop(0, `rgba(235, 165, 85, ${flicker})`);
-      grad.addColorStop(1, 'rgba(235, 165, 85, 0)');
-      ctx.fillStyle = grad;
-      ctx.fillRect(0, 0, w, h);
-    }
-
-    if (weather === 'rain') {
-      ctx.strokeStyle = 'rgba(195, 215, 210, 0.32)';
-      ctx.lineWidth = 1.1;
-      ctx.beginPath();
-      for (const p of particles) {
-        p.y = (p.y + p.speed * 3.4) % h;
-        p.x = (p.x - 1.2 + w) % w;
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x - 4, p.y + 14);
-      }
-      ctx.stroke();
-    } else if (weather === 'mist') {
-      ctx.fillStyle = 'rgba(210, 224, 216, 0.05)';
-      for (let i = 0; i < 4; i++) {
-        const yPos = h * (0.35 + i * 0.14) + Math.sin(time * 0.0005 + i) * 12;
-        ctx.fillRect(0, yPos, w, 42);
-      }
-    } else if (isNight) {
-      for (let i = 0; i < 20; i++) {
-        const p = particles[i];
-        p.x = (p.x + p.drift * 0.4 + w) % w;
-        p.y = (p.y + Math.sin(time * 0.002 + i) * 0.3 + h) % h;
-        const alpha = 0.25 + Math.sin(time * 0.004 + i * 2) * 0.2;
-        ctx.fillStyle = `rgba(225, 200, 130, ${Math.max(0.05, alpha)})`;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
-  requestAnimationFrame(drawAtmosphere);
-}
-
-requestAnimationFrame(drawAtmosphere);
+createLivingScene($('livingCanvas'), () => world);
 
 function update() {
   const now = Date.now();
   if (!world.paused && world.survivor.alive) {
-    const deltaMs = (now - world.lastRealMs) * speedMultiplier;
+    const elapsed = now - world.lastRealMs;
+    const deltaMs = elapsed * (elapsed > 5000 || document.hidden ? 1 : speedMultiplier);
     advanceElapsed(world, deltaMs);
     render({ announce: true });
   }
@@ -736,3 +672,6 @@ render();
 if (migrationToast) showToast(migrationToast);
 else if (loaded.warning) showToast(loaded.warning);
 setInterval(update, 250);
+
+// A static cache makes a previously opened world available without a connection.
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
